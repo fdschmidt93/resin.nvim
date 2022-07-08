@@ -35,7 +35,7 @@ function Sender._operatorfunc(motion)
   local end_pos = a.nvim_buf_get_mark(0, "]")
   local max_col = #a.nvim_buf_get_lines(0, end_pos[1] - 1, end_pos[1], false)[1]
   -- handle line motions
-  begin_pos[2] = motion ~= "line" and 0 or begin_pos[2]
+  begin_pos[2] = motion == "line" and 0 or begin_pos[2]
   end_pos[2] = motion ~= "line" and math.min(end_pos[2], max_col) or max_col -- end_pos[2] may be inf (eg inside paragraph)
 
   -- buf_get_text exclusive: add end_pos + 1
