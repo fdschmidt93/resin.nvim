@@ -1,4 +1,5 @@
 local a = vim.api
+local history = require "resin.history"
 
 local Sender = {}
 Sender.__index = Sender
@@ -53,29 +54,35 @@ function Sender._operatorfunc(motion)
 end
 
 function Sender:send_fn(data, opts)
-  self.receiver:receive(data, opts)
-end
-
-function Sender:send(opts)
   opts = opts or {}
   if not self.receiver then
     self:set_receiver(opts.receiver)
   end
+  if type(self.on_before_send) == "table" then
+    for _, fn in pairs(self.on_before_send) do
+      fn(self, data, opts)
+    end
+  end
+  self.receiver:receive(data, opts)
+  -- TODO make history opt-out for single send
+  local history_config = require("resin").config.history
+  if not (opts.history == false) and history_config then
+    history.write_history(self.bufnr, data)
+  end
+  if type(self.on_after_send) == "table" then
+    for _, fn in pairs(self.on_after_send) do
+      fn(self, data, opts)
+    end
+  end
+end
+
+function Sender:send(opts)
+  opts = opts or {}
   -- save cursor for restoring post-sending
   local cursor = a.nvim_win_get_cursor(0)
   _ResinOperatorFunc = function(motion)
     local data = Sender._operatorfunc(motion)
-    if type(self.on_before_send) == "table" then
-      for _, fn in pairs(self.on_before_send) do
-        fn(self, data, opts)
-      end
-    end
     self:send_fn(data, opts)
-    if type(self.on_after_send) == "table" then
-      for _, fn in pairs(self.on_after_send) do
-        fn(self, data, opts)
-      end
-    end
     a.nvim_win_set_cursor(0, cursor)
   end
   vim.go.operatorfunc = "v:lua._ResinOperatorFunc"
