@@ -1,30 +1,31 @@
 local a = vim.api
 local history = require "resin.history"
+local utils = require "resin.utils"
 
 local Sender = {}
 Sender.__index = Sender
 
 function Sender:new(opts)
   opts = opts or {}
+  local config = require("resin").config
 
   -- initialize properties
   opts.bufnr = vim.F.if_nil(opts.bufnr, a.nvim_get_current_buf())
   opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[opts.bufnr].filetype)
-  opts.on_before_send = vim.F.if_nil(opts.on_before_send, {})
-  opts.on_after_send = vim.F.if_nil(opts.on_after_send, {})
+  opts.on_before_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_send, config.hooks.on_before_send))
+  opts.on_after_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_send, config.hooks.on_after_send))
 
   opts.enable_filetype = vim.F.if_nil(opts.enable_filetype, true)
   if opts.filetype ~= "" and opts.enable_filetype then
     local filetype_hooks = vim.tbl_deep_extend(
       "keep",
-      require("resin").config.filetype[opts.filetype] or {},
+      vim.deepcopy(config.filetype[opts.filetype]) or {},
       require(string.format("resin.ft.%s", opts.filetype))
     )
     opts.on_before_send.filetype = filetype_hooks.on_before_send
     opts.on_after_send.filetype = filetype_hooks.on_after_send
     opts.setup_receiver = vim.F.if_nil(opts.setup_receiver, filetype_hooks.setup_receiver)
   end
-  -- to add, global config hooks
   return setmetatable(opts, Sender)
 end
 

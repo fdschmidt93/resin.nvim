@@ -5,10 +5,12 @@ local M = {}
 M.config = {
   enable_filetype = true,
   -- general hooks for __all__ send-to-repl
-  on_before_send = {},
-  on_after_send = {},
-  on_before_receive = {},
-  on_after_receive = {},
+  hooks = {
+    on_before_send = {},
+    on_after_send = {},
+    on_before_receive = {},
+    on_after_receive = {},
+  },
   default_mappings = true,
   filetype = {},
 }

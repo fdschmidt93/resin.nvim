@@ -1,17 +1,20 @@
+local utils = require "resin.utils"
+
 local Receiver = {}
 Receiver.__index = Receiver
 
 function Receiver:new(opts)
   opts = opts or {}
+  local config = require("resin").config
 
-  opts.on_before_receive = vim.F.if_nil(opts.on_before_receive, {})
-  opts.on_after_receive = vim.F.if_nil(opts.on_after_receive, {})
+  opts.on_before_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_receive, config.hooks.on_before_receive))
+  opts.on_after_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_receive, config.hooks.on_after_receive))
 
   opts.enable_filetype = vim.F.if_nil(opts.enable_filetype, true)
   if opts.enable_filetype then
     local filetype_hooks = vim.tbl_deep_extend(
       "keep",
-      require("resin").config.filetype[opts.filetype] or {},
+      vim.deepcopy(config.filetype[opts.filetype]) or {},
       require(string.format("resin.ft.%s", opts.filetype))
     )
     opts.on_before_receive.filetype = filetype_hooks.on_before_receive
