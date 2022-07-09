@@ -1,6 +1,6 @@
 # resin.nvim: SLIME :heart: treesitter
 
-`resin.nvim` is a minimal work-in-progress send-to-repl plugin that, unlike many comparable plugins, leverages neovim's native textobjects (incl. treesitter!).
+`resin.nvim` is a minimal **work-in-progress** (alpha stage not ready for general adoption) send-to-repl plugin that, unlike many comparable plugins, leverages neovim's native textobjects (incl. treesitter!).
 
 # Motivation & Philosophy
 
@@ -9,6 +9,25 @@
 * customizability
 
 Many REPL plugins manually extract text as opposed to levering neovim's native textobjects, which limits flexibility while actually increasing complexity. Furthermore, managing receivers is often overly tied to plugin logic. `resin.nvim` handles both aspects in a minimalistic design, as it is a **library** that primarily handles sending to a repl ("receiver"). In doing so, it enables maximum customization through hooks into sending & receiving text and leaving REPL management entirely to the user.
+
+# Teaser
+
+The plugin currently is in very early stages and not ready yet for general adoption. The below GIFs tease some of its features.
+
+## Use textobjects to send-to-repl
+
+`<C-c>` is the default prefix to send to a REPL. The GIF shows send inside parentheses(`i(`), send line (`V<C-c>`), send outside function (`<C-c>af`) and and early version of REPL history telescope picker.
+
+![Leveraging textobjects to send-to-repl](https://user-images.githubusercontent.com/39233597/178100976-dc1c1b60-23a8-443f-9f4d-0671dcfe763e.gif)
+
+## Lever telescope to repeat send-to-repl fast
+
+1. Sending the selected entry to the REPL
+2. Sending multi-selections in order to the REPL
+3. Telescope resume to repeat 2.
+
+![Leveraging telescope to repeat send-to-repl fast](https://user-images.githubusercontent.com/39233597/178101000-e99a5748-07ea-4611-b857-51d78fc30e88.gif)
+
 
 # Setup
 
@@ -46,9 +65,9 @@ By default, `resin.nvim` like `vim-slime` maps `<C-c>` in `{n, x}` modes to send
 
 # TODO
 
+- [x] `telescope.nvim` integration (history of send-to-repl, multi-select history to send to repl again)
 - [ ] Documentation
-- [ ] `telescope.nvim` integration (history of send-to-repl, multi-select history to send to repl again)
-- [ ] (only!) utilities for receiver management
+- [ ] Utilities for receiver management
 - [ ] Suppport `tmux` as an extra receiver
 - [ ] Maybe block-mode support
 
