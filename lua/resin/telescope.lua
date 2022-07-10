@@ -14,6 +14,7 @@ local previewers = require "telescope.previewers.buffer_previewer"
 local preview_utils = require "telescope.previewers.utils"
 
 local M = {}
+-- TODO: extract treesitter highlights for repl ordinal
 
 local previewer = function(opts)
   opts = opts or {}
@@ -28,6 +29,7 @@ local previewer = function(opts)
 end
 
 local function entry_maker(opts)
+  local path_display = vim.F.if_nil(opts.path_display, { ["tail"] = true })
   return function(entry)
     local displayer = entry_display.create {
       separator = " │ ",
@@ -38,7 +40,7 @@ local function entry_maker(opts)
       },
     }
 
-    local tail = tele_utils.transform_path({ path_display = { ["tail"] = true } }, entry.filename)
+    local tail = tele_utils.transform_path({ path_display = path_display }, entry.filename)
     local time = os.date("%Y/%m/%d", entry.time)
     local string = table.concat(entry.data, " ")
 
@@ -93,30 +95,30 @@ M.repl_history = function(opts)
     end
   end
   pickers
-      .new(opts, {
-        prompt_title = "REPL history",
-        finder = finders.new_table {
-          results = data,
-          entry_maker = vim.F.if_nil(opts.entry_maker, entry_maker(opts)),
-        },
-        previewer = previewer(opts),
-        sorter = conf.file_sorter(opts),
-        attach_mappings = function(prompt_bufnr)
-          action_set.select:replace(function()
-            local current_picker = action_state.get_current_picker(prompt_bufnr)
-            local selections = current_picker:get_multi_selection()
-            if vim.tbl_isempty(selections) then
-              table.insert(selections, action_state.get_selected_entry())
-            end
-            actions.close(prompt_bufnr)
-            for _, selection in ipairs(selections) do
-              sender:send_fn(selection.value.data)
-            end
-          end)
-          return true
-        end,
-      })
-      :find()
+    .new(opts, {
+      prompt_title = "REPL history",
+      finder = finders.new_table {
+        results = data,
+        entry_maker = vim.F.if_nil(opts.entry_maker, entry_maker(opts)),
+      },
+      previewer = previewer(opts),
+      sorter = conf.file_sorter(opts),
+      attach_mappings = function(prompt_bufnr)
+        action_set.select:replace(function()
+          local current_picker = action_state.get_current_picker(prompt_bufnr)
+          local selections = current_picker:get_multi_selection()
+          if vim.tbl_isempty(selections) then
+            table.insert(selections, action_state.get_selected_entry())
+          end
+          actions.close(prompt_bufnr)
+          for _, selection in ipairs(selections) do
+            sender:send_fn(selection.value.data)
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
 end
 
 return M
