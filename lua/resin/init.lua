@@ -16,6 +16,16 @@ M.config = {
   filetype = {},
 }
 
+M.get_sender = function(bufnr)
+  bufnr = vim.F.if_nil(bufnr, vim.api.nvim_get_current_buf())
+  local senders = state.get_senders()
+  local sender = senders[bufnr]
+  if not sender then
+    sender = Sender:new { bufnr = bufnr }
+  end
+  return sender
+end
+
 -- buf = Sender
 M.send = function(opts)
   opts = opts or {}
@@ -23,11 +33,7 @@ M.send = function(opts)
   -- for multi receiver senders
   opts.receiver_idx = vim.v.count > 0 and vim.v.count or 1
   local bufnr = vim.api.nvim_get_current_buf()
-  local senders = state.get_senders()
-  local sender = senders[bufnr]
-  if not sender then
-    sender = Sender:new { bufnr = bufnr }
-  end
+  local sender = M.get_sender(bufnr)
   sender:send(opts)
 end
 

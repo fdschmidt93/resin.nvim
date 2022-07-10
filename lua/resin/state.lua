@@ -8,7 +8,7 @@ M._receivers = {}
 function M.add_sender(sender)
   if not M._senders[sender.bufnr] then
     a.nvim_create_autocmd("BufUnload", {
-      buffer = sender.bunfr,
+      buffer = sender.bufnr,
       once = true,
       callback = function()
         M._senders[sender.bufnr] = nil

@@ -4,23 +4,6 @@ local Path = require "plenary.path"
 local Receiver = require "resin.receiver"
 local paste_file = Path:new(vim.fn.stdpath "state"):joinpath ".resin_paste.txt"
 
-local function get_tmux_sockets()
-  local sockets = {}
-  local sessions = Job:new({ command = "tmux", args = { "list-sessions", "-F", "#{session_name}" } }):sync()
-  for _, session in ipairs(sessions) do
-    local windows =
-    Job:new({ command = "tmux", args = { "list-windows", "-F", "#{window_index}", "-t", session } }):sync()
-    for _, window in ipairs(windows) do
-      local pane = Job:new({
-        command = "tmux",
-        args = { "list-panes", "-F", "#{pane_index}", "-t", session .. ":" .. window },
-      }):sync()
-      table.insert(sockets, { session = session, window = window, pane = pane })
-    end
-  end
-  return sockets
-end
-
 local socket_mt = {
   __tostring = function(self)
     return string.format("%s:%s.%s", self.session, self.window, self.pane)
