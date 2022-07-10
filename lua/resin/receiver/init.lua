@@ -7,6 +7,11 @@ function Receiver:new(opts)
   opts = opts or {}
   local config = require("resin").config
 
+  opts.senders = vim.F.if_nil(opts.senders, {})
+  if opts.sender then
+    table.insert(opts.senders, opts.sender)
+    opts.sender = nil
+  end
   opts.on_before_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_receive, config.hooks.on_before_receive))
   opts.on_after_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_receive, config.hooks.on_after_receive))
 
@@ -23,8 +28,8 @@ function Receiver:new(opts)
   return setmetatable(opts, Receiver)
 end
 
-function Receiver:set_sender(sender)
-  self.sender = sender
+function Receiver:add_sender(sender)
+  table.insert(self.senders, sender)
 end
 
 function Receiver:receive(data, opts)
@@ -39,6 +44,10 @@ function Receiver:receive(data, opts)
       fn(self, data, opts)
     end
   end
+end
+
+function Receiver:exists()
+  return assert(false, "`exists` needs to be implemented!")
 end
 
 return Receiver

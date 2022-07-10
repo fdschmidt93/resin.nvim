@@ -1,5 +1,6 @@
 local a = vim.api
 local history = require "resin.history"
+local state = require "resin.state"
 local utils = require "resin.utils"
 
 local Sender = {}
@@ -12,6 +13,14 @@ function Sender:new(opts)
   -- initialize properties
   opts.bufnr = vim.F.if_nil(opts.bufnr, a.nvim_get_current_buf())
   opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[opts.bufnr].filetype)
+
+  -- each Sender can have multiple Receivers; for simplicity, redirect into receivers
+  opts.receivers = vim.F.if_nil(opts.receivers, {})
+  if opts.receiver then
+    table.insert(opts.receivers, opts.receiver)
+    opts.receiver = nil
+  end
+
   opts.on_before_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_send, config.hooks.on_before_send))
   opts.on_after_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_send, config.hooks.on_after_send))
 
@@ -26,7 +35,9 @@ function Sender:new(opts)
     opts.on_after_send.filetype = filetype_hooks.on_after_send
     opts.setup_receiver = vim.F.if_nil(opts.setup_receiver, filetype_hooks.setup_receiver)
   end
-  return setmetatable(opts, Sender)
+  local sender = setmetatable(opts, Sender)
+  state.add_sender(sender)
+  return sender
 end
 
 -- TODO: block mode support
@@ -54,17 +65,40 @@ function Sender._operatorfunc(motion)
   return data
 end
 
+function Sender:_instantiate_receiver(receiver_idx)
+  local receiver = self.receivers and self.receivers[receiver_idx]
+  -- attempt to auto-add a receiver
+  if not receiver or (receiver and not receiver:exists()) then
+    self:add_receiver(receiver)
+    receiver = self.receivers[receiver_idx]
+  end
+  if self.receiver and not receiver then
+    vim.notify(
+      string.format(
+        "%s is an invalid receiver index! Only %s receivers attached to sender.",
+        receiver_idx,
+        #self.receivers,
+        vim.log.levels.ERROR
+      )
+    )
+    return
+  end
+  return receiver
+end
+
 function Sender:send_fn(data, opts)
   opts = opts or {}
-  if not self.receiver then
-    self:set_receiver(opts.receiver)
+  opts.receiver_idx = vim.F.if_nil(opts.receiver_idx, 1)
+  local receiver = self:_instantiate_receiver(opts.receiver_idx)
+  if not receiver then
+    return
   end
   if type(self.on_before_send) == "table" then
     for _, fn in pairs(self.on_before_send) do
       fn(self, data, opts)
     end
   end
-  self.receiver:receive(data, opts)
+  receiver:receive(data, opts)
   -- TODO make history opt-out for single send
   local history_config = require("resin").config.history
   if not (opts.history == false) and history_config then
@@ -90,12 +124,10 @@ function Sender:send(opts)
   a.nvim_feedkeys("g@", "n", false)
 end
 
-function Sender:set_receiver(receiver)
-  if not receiver then
-    self.receiver = self:setup_receiver()
-  else
-    self.receiver = receiver
-  end
+-- how to identify receiver
+function Sender:add_receiver(receiver)
+  receiver = vim.F.if_nil(receiver, self:setup_receiver())
+  table.insert(self.receivers, receiver)
 end
 
 return Sender

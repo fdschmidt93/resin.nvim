@@ -1,3 +1,4 @@
+local state = require "resin.state"
 local Sender = require "resin.sender"
 
 local M = {}
@@ -16,16 +17,18 @@ M.config = {
 }
 
 -- buf = Sender
-M._senders = {}
-M._receivers = {}
-
 M.send = function(opts)
   opts = opts or {}
+  -- use count (like `3w` to jump to third word) for Count<C-c> to decide what receiver to send to
+  -- for multi receiver senders
+  opts.receiver_idx = vim.v.count > 0 and vim.v.count or 1
   local bufnr = vim.api.nvim_get_current_buf()
-  if not M._senders[bufnr] then
-    M._senders[bufnr] = Sender:new { bufnr = bufnr }
+  local senders = state.get_senders()
+  local sender = senders[bufnr]
+  if not sender then
+    sender = Sender:new { bufnr = bufnr }
   end
-  M._senders[bufnr]:send(opts)
+  sender:send(opts)
 end
 
 M.setup = function(opts)
