@@ -13,7 +13,8 @@ return function(opts)
   end
 
   opts.exists = function(self)
-    return type(vim.b[self.bufnr].terminal_job_id) == "number"
+    local exists, _ = pcall(vim.api.nvim_buf_get_var, self.bufnr, "terminal_job_id")
+    return exists
   end
 
   return Receiver:new(opts)

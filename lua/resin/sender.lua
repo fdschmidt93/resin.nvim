@@ -70,7 +70,8 @@ function Sender:_instantiate_receiver(receiver_idx)
   local receiver = self.receivers and self.receivers[receiver_idx]
   -- attempt to auto-add a receiver
   if not receiver or (receiver and not receiver:exists()) then
-    self:add_receiver(receiver)
+    table.remove(self.receivers, receiver_idx)
+    self:add_receiver(nil, { receiver_idx = receiver_idx })
     receiver = self.receivers[receiver_idx]
   end
   if self.receiver and not receiver then
@@ -140,9 +141,20 @@ function Sender:send(opts)
 end
 
 -- how to identify receiver
-function Sender:add_receiver(receiver)
-  receiver = vim.F.if_nil(receiver, self:setup_receiver())
-  table.insert(self.receivers, receiver)
+function Sender:add_receiver(receiver, opts)
+  opts = opts or {}
+  if receiver == nil and self.setup_receiver then
+    receiver = self:setup_receiver()
+  end
+  if receiver == nil then
+    vim.notify("No receiver provided", vim.log.levels.WARN, { title = "resin.nvim" })
+    return
+  end
+  if type(opts.receiver_idx) == "number" then
+    table.insert(self.receivers, opts.receiver_idx, receiver)
+  else
+    table.insert(self.receivers, receiver, opts.receiver_idx)
+  end
 end
 
 return Sender
