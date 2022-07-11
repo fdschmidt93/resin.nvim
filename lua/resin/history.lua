@@ -1,4 +1,6 @@
 local a = vim.api
+local extmarks = require "resin.extmarks"
+local Path = require "plenary.path"
 
 local M = {}
 
@@ -18,10 +20,77 @@ end
 
 M.read_history = function()
   local history_path = require("resin").config.history.path
+  local history
   if vim.fn.filereadable(history_path) == 1 then
-    return vim.json.decode(read_file(history_path))
+    -- format: { filename = { string<time> = { begin = begin_pos, end_pos = end_pos } } }
+    history = vim.json.decode(read_file(history_path))
+    -- format: { bufnr = { number<time> = { begin = begin_pos, end_pos = end_pos } } }
+  else
+    history = {}
   end
-  return {}
+  local extmarks_ = extmarks.get_marks_positions()
+  for bufnr, buffer_marks in pairs(extmarks_) do
+    local bufname = a.nvim_buf_get_name(bufnr)
+    for time, pos in pairs(buffer_marks) do
+      if not history[bufname] then
+        history[bufname] = {}
+      end
+      history[bufname][tostring(time)] = pos
+    end
+  end
+  return history
+end
+
+M.convert = function(history)
+  local ret = {}
+  local bufs = vim.api.nvim_list_bufs()
+  local bufnames = {}
+  for _, buf in ipairs(bufs) do
+    if a.nvim_buf_is_loaded(buf) then
+      bufnames[a.nvim_buf_get_name(buf)] = buf
+    end
+  end
+  for filename, filehistory in pairs(history) do
+    ret[filename] = {}
+    local bufnr = bufnames[filename]
+    local cleanup_buf = false
+    if bufnr == nil then
+      local data = Path:new(filename):read()
+      local processed_data = {}
+      for line in vim.gsplit(data, "[\r]?\n") do
+        table.insert(processed_data, line)
+      end
+      table.remove(processed_data)
+      bufnr = a.nvim_create_buf(false, true)
+      a.nvim_buf_set_lines(bufnr, 0, -1, false, processed_data)
+      cleanup_buf = true
+    end
+    for timestamp, value in pairs(filehistory) do
+      local data
+      if value.begin_pos then
+        local begin_pos = value.begin_pos
+        local end_pos = value.end_pos
+        local max_len = a.nvim_buf_line_count(bufnr) - 1
+        local last_line = a.nvim_buf_get_lines(bufnr, max_len, -1, false)[1]
+        -- end of file may be intermittently deleted
+        data = a.nvim_buf_get_text(
+          bufnr,
+          begin_pos[1],
+          begin_pos[2],
+          max_len < end_pos[1] and max_len or end_pos[1],
+          max_len < end_pos[1] and #last_line or end_pos[2] + 1 ,
+          {}
+        )
+      else
+        data = value
+      end
+      ret[filename][tostring(timestamp)] = data
+    end
+    if cleanup_buf then
+      a.nvim_buf_delete(bufnr, { force = true, unload = false })
+    end
+  end
+  return ret
 end
 
 M.truncate_history = function(history, limit)
@@ -45,14 +114,14 @@ M.truncate_history = function(history, limit)
   return history
 end
 
-M.write_history = function(bufnr, data)
-  local filename = a.nvim_buf_get_name(bufnr)
+M.write = function(opts)
+  opts = opts or {}
+  opts.convert = vim.F.if_nil(opts.convert, false)
   local history_config = require("resin").config.history
   local history = M.read_history()
-  if not history[filename] then
-    history[filename] = {}
+  if opts.convert then
+    history = M.convert(history)
   end
-  history[filename][tostring(os.time())] = data
   if type(history_config.limit) == "number" then
     if not vim.tbl_isempty(history) then
       history = M.truncate_history(history, history_config.limit)

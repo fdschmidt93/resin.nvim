@@ -1,10 +1,16 @@
 local state = require "resin.state"
 local Sender = require "resin.sender"
+local os_sep = require("plenary.path").path.sep
 
 local M = {}
 
 M.config = {
   enable_filetype = true,
+  history = {
+    path = vim.fn.stdpath "state" .. os_sep .. "resin_history.json",
+    limit = 20,
+    save_on_exit = true,
+  },
   highlight = {
     timeout = 200,
     group = "IncSearch",
@@ -47,6 +53,17 @@ M.setup = function(opts)
     vim.keymap.set({ "n", "x" }, "<C-c>", function()
       require("resin").send()
     end, { desc = "Send-to-repl" })
+  end
+  if M.config.history.save_on_exit then
+    vim.api.nvim_create_autocmd("VimLeave", {
+      callback = function()
+        local resin_extmarks = require "resin.extmarks"
+        -- history was changed
+        if not vim.tbl_isempty(resin_extmarks._marks) then
+          require("resin.history").write { convert = true }
+        end
+      end,
+    })
   end
 end
 

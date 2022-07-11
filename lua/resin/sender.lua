@@ -1,7 +1,10 @@
 local a = vim.api
 local history = require "resin.history"
 local state = require "resin.state"
+local extmarks = require "resin.extmarks"
 local utils = require "resin.utils"
+
+local resin_ns = a.nvim_create_namespace "ResinMarks"
 
 local Sender = {}
 Sender.__index = Sender
@@ -62,6 +65,9 @@ function Sender._operatorfunc(motion)
   for i = 1, #data do
     data[i] = string.gsub(data[i], "\t", spaces)
   end
+  local begin_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, begin_pos[1] - 1, begin_pos[2], {})
+  local end_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, end_pos[1] - 1, end_pos[2], {})
+  extmarks.add(begin_extmark_id, end_extmark_id)
   -- pos: {1, 0}-indexed
   return data, { motion = motion, begin_pos = begin_pos, end_pos = end_pos }
 end
@@ -104,17 +110,20 @@ function Sender:send_fn(data, opts)
   end
   receiver:receive(data, opts)
   local highlight = vim.F.if_nil(opts.highlight, {})
-  utils.hl_on_send {
-    regtype = opts.motion,
-    begin_pos = opts.begin_pos,
-    end_pos = opts.end_pos,
-    timeout = vim.F.if_nil(highlight.timeout, config.highlight.timeout),
-    hl_group = vim.F.if_nil(highlight.group, config.highlight.group),
-  }
+  -- not valid if sent from history
+  if opts.begin_pos then
+    utils.hl_on_send {
+      regtype = opts.motion,
+      begin_pos = opts.begin_pos,
+      end_pos = opts.end_pos,
+      timeout = vim.F.if_nil(highlight.timeout, config.highlight.timeout),
+      hl_group = vim.F.if_nil(highlight.group, config.highlight.group),
+    }
+  end
   -- TODO make history opt-out for single send
   local history_config = require("resin").config.history
   if not (opts.history == false) and history_config then
-    history.write_history(self.bufnr, data)
+    history.write()
   end
   if type(self.on_after_send) == "table" then
     for _, fn in pairs(self.on_after_send) do
