@@ -31,8 +31,12 @@ return function(opts)
     return Receiver:new(opts)
   end
   -- TODO: session/window/pane tracking
-  opts.exists = function(self)
+  opts._exists = function(self)
     return true
+  end
+
+  opts._tostring = function(self)
+    return tostring(self.socket)
   end
 
   return Receiver:new(opts)

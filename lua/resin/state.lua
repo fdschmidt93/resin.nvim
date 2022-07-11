@@ -19,11 +19,15 @@ function M.add_sender(sender)
 end
 
 function M.add_receiver(receiver)
-  table.insert(M._receivers, receiver)
+  M._receivers[tostring(receiver)] = receiver
 end
 
 function M.get_senders()
   return M._senders
+end
+
+function M.get_receivers()
+  return M._receivers
 end
 
 return M

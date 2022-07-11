@@ -1,4 +1,5 @@
 local utils = require "resin.utils"
+local state = require "resin.state"
 
 local Receiver = {}
 Receiver.__index = Receiver
@@ -25,7 +26,9 @@ function Receiver:new(opts)
     opts.on_before_receive.filetype = filetype_hooks.on_before_receive
     opts.on_after_receive.filetype = filetype_hooks.on_after_receive
   end
-  return setmetatable(opts, Receiver)
+  local receiver = setmetatable(opts, Receiver)
+  state.add_receiver(receiver)
+  return receiver
 end
 
 function Receiver:add_sender(sender)
@@ -47,7 +50,19 @@ function Receiver:receive(data, opts)
 end
 
 function Receiver:exists()
-  return assert(false, "`exists` needs to be implemented!")
+  assert(self._exists, "`_exists` needs to be implemented!")
+  local exists = self:_exists()
+  for name, receiver in pairs(state._receivers) do
+    if vim.deep_equal(self, receiver) then
+      state._receivers[name] = nil
+    end
+  end
+  return exists
+end
+
+function Receiver:__tostring()
+  assert(self._tostring, "`_tostring` needs to be implemented!")
+  return self:_tostring()
 end
 
 return Receiver

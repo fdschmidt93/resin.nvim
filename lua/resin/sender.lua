@@ -166,4 +166,12 @@ function Sender:add_receiver(receiver, opts)
   end
 end
 
+function Sender:remove_receiver(index)
+  if index then
+    table.remove(self.receivers, index)
+  else
+    self.receivers = {}
+  end
+end
+
 return Sender

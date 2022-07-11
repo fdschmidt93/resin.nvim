@@ -4,16 +4,12 @@ local actions = require "telescope.actions"
 local action_state = require "telescope.actions.state"
 local conf = require("telescope.config").values
 local finders = require "telescope.finders"
-local make_entry = require "telescope.make_entry"
 local pickers = require "telescope.pickers"
-local history = require "resin.history"
-local pfiletype = require "plenary.filetype"
 local entry_display = require "telescope.pickers.entry_display"
-local tele_utils = require "telescope.utils"
 local previewers = require "telescope.previewers.buffer_previewer"
-local preview_utils = require "telescope.previewers.utils"
 local resin = require "resin"
 local Job = require "plenary.job"
+local utils = require "resin.utils"
 
 local last_non_empty_line = function(lines)
   for i = #lines, 1, -1 do
@@ -25,7 +21,6 @@ local last_non_empty_line = function(lines)
   return ""
 end
 
---- Move the selection to the previous entry
 ---@param job_opts table: see plenary.job opts table
 --- - Note: `on_{stdout, exit}` are carefully tuned default functions to preview output & typically not to be overridden
 ---@field timeout number: preview blocks at most for `timeout` milliseconds (default: defaults.preview.timeout)
@@ -74,7 +69,7 @@ local preview_tmux = function(self, bufnr)
       "capture-pane",
       "-ep",
       "-t",
-      string.format("%s:%s.%s", self.session, self.window_index, self.pane_index),
+      self.name,
     },
   })
 end
@@ -88,60 +83,18 @@ local function tmux_entry_maker(entry)
       { remaining = true },
     },
   }
-  local socket = string.format("%s:%s.%s", entry.session, entry.window_index, entry.pane_index)
   return {
     value = entry,
     display = function()
       -- telescope oddity: displayer handles formatting of each item in display; outer hl_group table is post-hoc highlighting
       return displayer {
         "tmux",
-        { socket, "TelescopeResultsNumber" },
+        { entry.name, "TelescopeResultsNumber" },
         entry.pane_title,
       }
     end,
-    ordinal = "tmux" .. " " .. socket .. " " .. entry.pane_title,
+    ordinal = "tmux" .. " " .. entry.name .. " " .. entry.pane_title,
   }
-end
-
-local function get_tmux_sockets(filetype)
-  local sockets = {}
-  local sessions = Job:new({ command = "tmux", args = { "list-sessions", "-F", "#{session_name}" } }):sync()
-  for _, session in ipairs(sessions) do
-    local windows =
-      Job:new({ command = "tmux", args = { "list-windows", "-F", "#{window_index} #{window_name}", "-t", session } })
-        :sync()
-    for _, window in ipairs(windows) do
-      local window_substring = vim.split(window, " ")
-      local window_index = table.remove(window_substring, 1)
-      local window_name = table.concat(window_substring, " ")
-      local panes = Job:new({
-        command = "tmux",
-        args = { "list-panes", "-F", "#{pane_index} #{pane_title}", "-t", session .. ":" .. window_index },
-      }):sync()
-      for _, pane in ipairs(panes) do
-        local pane_substring = vim.split(pane, " ")
-        local pane_index = table.remove(pane_substring, 1)
-        local pane_title = table.concat(pane_substring, " ")
-        table.insert(sockets, {
-          session = session,
-          window_index = window_index,
-          window_name = window_name,
-          pane_index = pane_index,
-          pane_title = pane_title,
-          preview_function = preview_tmux,
-          entry_maker = tmux_entry_maker,
-          return_receiver = function(self)
-            local tmux = require "resin.receiver.tmux"
-            return tmux {
-              socket = { session = self.session, window = self.window_index, pane = self.pane_index },
-              filetype = filetype,
-            }
-          end,
-        })
-      end
-    end
-  end
-  return sockets
 end
 
 local previewer = function(opts)
@@ -174,7 +127,7 @@ local function buffer_entry_maker(entry)
       return displayer {
         "nvim",
         { entry.buffer, "TelescopeResultsNumber" },
-        table.concat(entry.argv, " "),
+        entry.name,
       }
     end,
     ordinal = "nvim" .. " " .. tostring(entry.bufnr) .. " " .. table.concat(entry.argv, " "),
@@ -186,6 +139,7 @@ local get_neovim_terminals = function(filetype)
     return chan.mode == "terminal" and chan.stream == "job"
   end, vim.api.nvim_list_chans())
   for _, b in ipairs(buffers) do
+    b.name = a.nvim_buf_get_name(b.buffer)
     b.preview_function = preview_terminal
     b.entry_maker = buffer_entry_maker
     b.return_receiver = function(self)
@@ -209,7 +163,19 @@ return function(opts)
 
   local data = {}
   local terminals = get_neovim_terminals(filetype)
-  local tmux_panes = get_tmux_sockets(filetype)
+  local tmux_panes = {}
+  for _, pane in ipairs(utils.get_tmux_sockets()) do
+    pane.preview_function = preview_tmux
+    pane.entry_maker = tmux_entry_maker
+    pane.return_receiver = function(self)
+      local tmux = require "resin.receiver.tmux"
+      return tmux {
+        socket = { session = self.session, window = self.window_index, pane = self.pane_index },
+        filetype = filetype,
+      }
+    end
+    table.insert(tmux_panes, pane)
+  end
   for _, v in ipairs(terminals) do
     table.insert(data, v)
   end
@@ -217,28 +183,51 @@ return function(opts)
     table.insert(data, v)
   end
   pickers
-    .new(opts, {
-      prompt_title = "Receivers",
-      finder = finders.new_table {
-        results = data,
-        entry_maker = entry_maker,
-      },
-      previewer = previewer(opts),
-      sorter = conf.file_sorter(opts),
-      attach_mappings = function(prompt_bufnr)
-        action_set.select:replace(function()
-          local current_picker = action_state.get_current_picker(prompt_bufnr)
-          local selections = current_picker:get_multi_selection()
-          if vim.tbl_isempty(selections) then
-            table.insert(selections, action_state.get_selected_entry())
-          end
-          actions.close(prompt_bufnr)
-          for _, selection in ipairs(selections) do
-            sender:add_receiver(selection.value:return_receiver())
-          end
-        end)
-        return true
-      end,
-    })
-    :find()
+      .new(opts, {
+        prompt_title = "Available Receivers",
+        finder = finders.new_table {
+          results = data,
+          entry_maker = entry_maker,
+        },
+        previewer = previewer(opts),
+        sorter = conf.file_sorter(opts),
+        on_complete = {
+          function(current_picker)
+            local receivers = {}
+            for _, receiver in ipairs(sender.receivers) do
+              receivers[tostring(receiver)] = receiver
+            end
+            if not vim.tbl_isempty(receivers) then
+              for entry in current_picker.manager:iter() do
+                if receivers[entry.value.name] then
+                  current_picker._multi:toggle(entry)
+                end
+              end
+            end
+            current_picker:clear_completion_callbacks()
+            current_picker:refresh()
+          end,
+        },
+        attach_mappings = function(prompt_bufnr)
+          action_set.select:replace(function()
+            sender:remove_receiver()
+            local current_picker = action_state.get_current_picker(prompt_bufnr)
+            local receivers = require("resin.state").get_receivers()
+            local selections = current_picker:get_multi_selection()
+            if vim.tbl_isempty(selections) then
+              table.insert(selections, action_state.get_selected_entry())
+            end
+            actions.close(prompt_bufnr)
+            for _, selection in ipairs(selections) do
+              local receiver = receivers[selection.value.name]
+              if not receiver then
+                receiver = selection.value:return_receiver()
+              end
+              sender:add_receiver(receiver)
+            end
+          end)
+          return true
+        end,
+      })
+      :find()
 end
