@@ -40,8 +40,8 @@ function Sender:new(opts)
   return sender
 end
 
--- TODO: block mode support
--- TODO: multi-width chars?
+-- TODO: block mode support but makes impl likely needlessly complex
+-- TODO: multi-width chars? see above
 -- TODO: carve-out post-processing
 function Sender._operatorfunc(motion)
   local begin_pos = a.nvim_buf_get_mark(0, "[")
@@ -62,7 +62,8 @@ function Sender._operatorfunc(motion)
   for i = 1, #data do
     data[i] = string.gsub(data[i], "\t", spaces)
   end
-  return data
+  -- pos: {1, 0}-indexed
+  return data, { motion = motion, begin_pos = begin_pos, end_pos = end_pos }
 end
 
 function Sender:_instantiate_receiver(receiver_idx)
@@ -78,7 +79,8 @@ function Sender:_instantiate_receiver(receiver_idx)
         "%s is an invalid receiver index! Only %s receivers attached to sender.",
         receiver_idx,
         #self.receivers,
-        vim.log.levels.ERROR
+        vim.log.levels.ERROR,
+        { title = "resin.nvim" }
       )
     )
     return
@@ -87,6 +89,7 @@ function Sender:_instantiate_receiver(receiver_idx)
 end
 
 function Sender:send_fn(data, opts)
+  local config = require("resin").config
   opts = opts or {}
   opts.receiver_idx = vim.F.if_nil(opts.receiver_idx, 1)
   local receiver = self:_instantiate_receiver(opts.receiver_idx)
@@ -99,6 +102,14 @@ function Sender:send_fn(data, opts)
     end
   end
   receiver:receive(data, opts)
+  local highlight = vim.F.if_nil(opts.highlight, {})
+  utils.hl_on_send {
+    regtype = opts.motion,
+    begin_pos = opts.begin_pos,
+    end_pos = opts.end_pos,
+    timeout = vim.F.if_nil(highlight.timeout, config.highlight.timeout),
+    hl_group = vim.F.if_nil(highlight.group, config.highlight.group),
+  }
   -- TODO make history opt-out for single send
   local history_config = require("resin").config.history
   if not (opts.history == false) and history_config then
@@ -116,8 +127,12 @@ function Sender:send(opts)
   -- save cursor for restoring post-sending
   local cursor = a.nvim_win_get_cursor(0)
   _ResinOperatorFunc = function(motion)
-    local data = Sender._operatorfunc(motion)
-    self:send_fn(data, opts)
+    local data, meta_data = Sender._operatorfunc(motion)
+    if motion == "block" then
+      vim.notify("Sending from visual block mode not supported.", vim.log.levels.WARN, { title = "resin.nvim" })
+      return
+    end
+    self:send_fn(data, vim.tbl_deep_extend("force", opts, meta_data))
     a.nvim_win_set_cursor(0, cursor)
   end
   vim.go.operatorfunc = "v:lua._ResinOperatorFunc"

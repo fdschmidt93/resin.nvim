@@ -5,6 +5,10 @@ local M = {}
 
 M.config = {
   enable_filetype = true,
+  highlight = {
+    timeout = 200,
+    group = "IncSearch",
+  },
   -- general hooks for __all__ send-to-repl
   hooks = {
     on_before_send = {},
