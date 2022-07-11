@@ -13,7 +13,6 @@ local tele_utils = require "telescope.utils"
 local previewers = require "telescope.previewers.buffer_previewer"
 local preview_utils = require "telescope.previewers.utils"
 
-local M = {}
 -- TODO: extract treesitter highlights for repl ordinal
 
 local previewer = function(opts)
@@ -73,7 +72,7 @@ local function entry_maker(opts)
   end
 end
 
-M.repl_history = function(opts)
+return function(opts)
   opts = opts or {}
   opts.limit_filetype = vim.F.if_nil(opts.limit_filetype, true)
   opts.limit_file = vim.F.if_nil(opts.limit_file, false)
@@ -120,5 +119,3 @@ M.repl_history = function(opts)
     })
     :find()
 end
-
-return M

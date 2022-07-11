@@ -15,8 +15,6 @@ local preview_utils = require "telescope.previewers.utils"
 local resin = require "resin"
 local Job = require "plenary.job"
 
-local M = {}
-
 local last_non_empty_line = function(lines)
   for i = #lines, 1, -1 do
     local line = lines[i]
@@ -110,7 +108,7 @@ local function get_tmux_sockets(filetype)
   local sessions = Job:new({ command = "tmux", args = { "list-sessions", "-F", "#{session_name}" } }):sync()
   for _, session in ipairs(sessions) do
     local windows =
-    Job:new({ command = "tmux", args = { "list-windows", "-F", "#{window_index} #{window_name}", "-t", session } })
+      Job:new({ command = "tmux", args = { "list-windows", "-F", "#{window_index} #{window_name}", "-t", session } })
         :sync()
     for _, window in ipairs(windows) do
       local window_substring = vim.split(window, " ")
@@ -202,7 +200,7 @@ local function entry_maker(entry)
   return entry:entry_maker()
 end
 
-M.add_receiver = function(opts)
+return function(opts)
   opts = opts or {}
   opts.bufnr = vim.F.if_nil(opts.bufnr, a.nvim_get_current_buf())
   -- local sender = vim.F.if_nil(opts.sender, resin.get_sender(opts.bufnr))
@@ -219,30 +217,28 @@ M.add_receiver = function(opts)
     table.insert(data, v)
   end
   pickers
-      .new(opts, {
-        prompt_title = "Receivers",
-        finder = finders.new_table {
-          results = data,
-          entry_maker = entry_maker,
-        },
-        previewer = previewer(opts),
-        sorter = conf.file_sorter(opts),
-        attach_mappings = function(prompt_bufnr)
-          action_set.select:replace(function()
-            local current_picker = action_state.get_current_picker(prompt_bufnr)
-            local selections = current_picker:get_multi_selection()
-            if vim.tbl_isempty(selections) then
-              table.insert(selections, action_state.get_selected_entry())
-            end
-            actions.close(prompt_bufnr)
-            for _, selection in ipairs(selections) do
-              sender:add_receiver(selection.value:return_receiver())
-            end
-          end)
-          return true
-        end,
-      })
-      :find()
+    .new(opts, {
+      prompt_title = "Receivers",
+      finder = finders.new_table {
+        results = data,
+        entry_maker = entry_maker,
+      },
+      previewer = previewer(opts),
+      sorter = conf.file_sorter(opts),
+      attach_mappings = function(prompt_bufnr)
+        action_set.select:replace(function()
+          local current_picker = action_state.get_current_picker(prompt_bufnr)
+          local selections = current_picker:get_multi_selection()
+          if vim.tbl_isempty(selections) then
+            table.insert(selections, action_state.get_selected_entry())
+          end
+          actions.close(prompt_bufnr)
+          for _, selection in ipairs(selections) do
+            sender:add_receiver(selection.value:return_receiver())
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
 end
-
-return M
