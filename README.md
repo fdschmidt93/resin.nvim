@@ -66,9 +66,9 @@ By default, `resin.nvim` like `vim-slime` maps `<C-c>` in `{n, x}` modes to send
 # TODO
 
 - [x] `telescope.nvim` integration (history of send-to-repl, multi-select history to send to repl again)
-- [ ] Documentation
+- [x] Suppport `tmux` as an extra receiver
 - [ ] Utilities for receiver management
-- [ ] Suppport `tmux` as an extra receiver
+- [ ] Documentation
 - [ ] Maybe block-mode support
 
 # Credits
