@@ -83,7 +83,7 @@ return function(opts)
   local sender = vim.F.if_nil(opts.sender, require("resin")._senders[bufnr])
 
   local data = {}
-  for filename, filehistory in pairs(history.read_history()) do
+  for filename, filehistory in pairs(history.convert(history.read_history())) do
     if not (opts.limit_file and filename ~= bufname) then
       for timestamp, sent_data in pairs(filehistory) do
         local ft = pfiletype.detect(filename)
