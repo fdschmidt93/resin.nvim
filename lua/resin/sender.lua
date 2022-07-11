@@ -153,7 +153,7 @@ function Sender:add_receiver(receiver, opts)
   if type(opts.receiver_idx) == "number" then
     table.insert(self.receivers, opts.receiver_idx, receiver)
   else
-    table.insert(self.receivers, receiver, opts.receiver_idx)
+    table.insert(self.receivers, receiver)
   end
 end
 
