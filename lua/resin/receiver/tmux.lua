@@ -19,7 +19,7 @@ return function(opts)
   opts.socket = setmetatable(opts.socket, socket_mt)
 
   opts.receiver_fn = function(self, data)
-    paste_file:write(table.concat(data, "\n"), "w")
+    paste_file:write(table.concat(data, "\n") .. "\n", "w")
     Job:new({
       command = "tmux",
       args = { "load-buffer", paste_file:absolute() },

@@ -8,7 +8,7 @@ return function(opts)
   assert(vim.b[opts.bufnr].terminal_job_id, "Must be terminal buffer!")
 
   opts.receiver_fn = function(self, data)
-    vim.api.nvim_chan_send(vim.b[self.bufnr].terminal_job_id, table.concat(data, "\n"))
+    vim.api.nvim_chan_send(vim.b[self.bufnr].terminal_job_id, table.concat(data, "\n") .. "\n")
   end
 
   -- being passed through to metatable
