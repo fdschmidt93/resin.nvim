@@ -21,6 +21,8 @@ local last_non_empty_line = function(lines)
   return ""
 end
 
+local NAME_WIDTH = 25
+
 ---@param job_opts table: see plenary.job opts table
 --- - Note: `on_{stdout, exit}` are carefully tuned default functions to preview output & typically not to be overridden
 ---@field timeout number: preview blocks at most for `timeout` milliseconds (default: defaults.preview.timeout)
@@ -79,7 +81,8 @@ local function tmux_entry_maker(entry)
     separator = " ",
     items = {
       { width = 4 },
-      { width = 10, right_justify = true },
+      { width = 1 },
+      { width = NAME_WIDTH },
       { remaining = true },
     },
   }
@@ -89,8 +92,9 @@ local function tmux_entry_maker(entry)
       -- telescope oddity: displayer handles formatting of each item in display; outer hl_group table is post-hoc highlighting
       return displayer {
         "tmux",
+        { vim.F.if_nil(entry.priority, "-"), "TelescopeResultsVariable" },
         { entry.name, "TelescopeResultsNumber" },
-        entry.pane_title,
+        { entry.pane_title, "Title" },
       }
     end,
     ordinal = "tmux" .. " " .. entry.name .. " " .. entry.pane_title,
@@ -101,7 +105,6 @@ local previewer = function(opts)
   opts = opts or {}
   return previewers.new_buffer_previewer {
     define_preview = function(self, entry)
-      -- require "telescope.log".warn(entry)
       entry.value.preview_function(entry.value, self.state.bufnr)
     end,
   }
@@ -116,7 +119,8 @@ local function buffer_entry_maker(entry)
     separator = " ",
     items = {
       { width = 4 },
-      { width = 10, right_justify = true },
+      { width = 1 },
+      { width = NAME_WIDTH },
       { remaining = true },
     },
   }
@@ -126,8 +130,9 @@ local function buffer_entry_maker(entry)
       -- telescope oddity: displayer handles formatting of each item in display; outer hl_group table is post-hoc highlighting
       return displayer {
         "nvim",
+        { vim.F.if_nil(entry.priority, "-"), "TelescopeResultsVariable" },
         { entry.buffer, "TelescopeResultsNumber" },
-        entry.name,
+        { entry.name, "Title" },
       }
     end,
     ordinal = "nvim" .. " " .. tostring(entry.bufnr) .. " " .. table.concat(entry.argv, " "),
@@ -144,7 +149,7 @@ local get_neovim_terminals = function(filetype)
     b.entry_maker = buffer_entry_maker
     b.return_receiver = function(self)
       local nvim = require "resin.receiver.neovim_terminal"
-      return nvim { bufnr = self.buffer, filetype = filetype }
+      return nvim { bufnr = self.buffer }
     end
   end
   return buffers
@@ -171,7 +176,6 @@ return function(opts)
       local tmux = require "resin.receiver.tmux"
       return tmux {
         socket = { session = self.session, window = self.window_index, pane = self.pane_index },
-        filetype = filetype,
       }
     end
     table.insert(tmux_panes, pane)
@@ -183,51 +187,107 @@ return function(opts)
     table.insert(data, v)
   end
   pickers
-      .new(opts, {
-        prompt_title = "Available Receivers",
-        finder = finders.new_table {
-          results = data,
-          entry_maker = entry_maker,
-        },
-        previewer = previewer(opts),
-        sorter = conf.file_sorter(opts),
-        on_complete = {
-          function(current_picker)
-            local receivers = {}
-            for _, receiver in ipairs(sender.receivers) do
-              receivers[tostring(receiver)] = receiver
+    .new(opts, {
+      prompt_title = "Available Receivers",
+      finder = finders.new_table {
+        results = data,
+        entry_maker = entry_maker,
+      },
+      previewer = previewer(opts),
+      sorter = conf.file_sorter(opts),
+      on_complete = {
+        function(current_picker)
+          local receivers = {}
+          for _, receiver in ipairs(sender.receivers) do
+            receivers[tostring(receiver)] = receiver
+          end
+          if not vim.tbl_isempty(receivers) then
+            local priority = 1
+            for entry in current_picker.manager:iter() do
+              if receivers[entry.value.name] then
+                entry.value.priority = priority
+                current_picker._multi:toggle(entry)
+                priority = priority + 1
+              end
             end
-            if not vim.tbl_isempty(receivers) then
-              for entry in current_picker.manager:iter() do
-                if receivers[entry.value.name] then
-                  current_picker._multi:toggle(entry)
+          end
+          current_picker:clear_completion_callbacks()
+          current_picker:refresh()
+        end,
+      },
+      attach_mappings = function(prompt_bufnr)
+        local set_receivers = function()
+          local receivers = require("resin.state").get_receivers()
+          sender:remove_receiver()
+          local current_picker = action_state.get_current_picker(prompt_bufnr)
+          local selections = current_picker:get_multi_selection()
+          if vim.tbl_isempty(selections) then
+            table.insert(selections, action_state.get_selected_entry())
+          end
+          -- clear multi-selections to not re-replace close
+          actions.drop_all(prompt_bufnr)
+          actions.close(prompt_bufnr)
+          for _, selection in ipairs(selections) do
+            local receiver = receivers[selection.value.name]
+            if not receiver then
+              receiver = selection.value:return_receiver()
+            end
+            sender:add_receiver(receiver)
+          end
+        end
+        action_set.select:replace(set_receivers)
+
+        -- if a value has (a) priority, (un-)set it
+        -- update priorities of other selections
+        -- incrementally update row depending on where it may be after selection
+        -- leverage completion callback to return to original row after refresh (required for redraw)
+        local selected_entry
+        local priority
+        local row
+        actions.toggle_selection:enhance {
+          pre = function()
+            selected_entry = action_state.get_selected_entry()
+            priority = selected_entry.value.priority
+          end,
+          post = function()
+            local current_picker = action_state.get_current_picker(prompt_bufnr)
+            local selections = current_picker:get_multi_selection()
+            if not selected_entry.value.priority then
+              selected_entry.value.priority = #selections
+            else
+              priority = selected_entry.value.priority
+              selected_entry.value.priority = nil
+              for _, selection in ipairs(selections) do
+                if priority < selection.value.priority then
+                  selection.value.priority = selection.value.priority - 1
                 end
               end
             end
-            current_picker:clear_completion_callbacks()
+            local fn_index = #current_picker._completion_callbacks
+            row = current_picker:get_selection_row()
+            current_picker:register_completion_callback(function(self)
+              current_picker:set_selection(row)
+              self:set_selection(row)
+              table.remove(self._completion_callbacks, fn_index)
+            end)
             current_picker:refresh()
           end,
-        },
-        attach_mappings = function(prompt_bufnr)
-          action_set.select:replace(function()
-            sender:remove_receiver()
+        }
+        -- update where row goes after selection appropriately
+        actions.move_selection_worse:enhance {
+          post = function()
             local current_picker = action_state.get_current_picker(prompt_bufnr)
-            local receivers = require("resin.state").get_receivers()
-            local selections = current_picker:get_multi_selection()
-            if vim.tbl_isempty(selections) then
-              table.insert(selections, action_state.get_selected_entry())
-            end
-            actions.close(prompt_bufnr)
-            for _, selection in ipairs(selections) do
-              local receiver = receivers[selection.value.name]
-              if not receiver then
-                receiver = selection.value:return_receiver()
-              end
-              sender:add_receiver(receiver)
-            end
-          end)
-          return true
-        end,
-      })
-      :find()
+            row = current_picker:get_selection_row()
+          end,
+        }
+        actions.move_selection_better:enhance {
+          post = function()
+            local current_picker = action_state.get_current_picker(prompt_bufnr)
+            row = current_picker:get_selection_row()
+          end,
+        }
+        return true
+      end,
+    })
+    :find()
 end

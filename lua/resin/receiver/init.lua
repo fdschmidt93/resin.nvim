@@ -6,25 +6,11 @@ Receiver.__index = Receiver
 
 function Receiver:new(opts)
   opts = opts or {}
-  local config = require("resin").config
 
   opts.senders = vim.F.if_nil(opts.senders, {})
   if opts.sender then
     table.insert(opts.senders, opts.sender)
     opts.sender = nil
-  end
-  opts.on_before_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_receive, config.hooks.on_before_receive))
-  opts.on_after_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_receive, config.hooks.on_after_receive))
-
-  opts.enable_filetype = vim.F.if_nil(opts.enable_filetype, true)
-  if opts.enable_filetype then
-    local filetype_hooks = vim.tbl_deep_extend(
-      "keep",
-      vim.deepcopy(config.filetype[opts.filetype]) or {},
-      require(string.format("resin.ft.%s", opts.filetype))
-    )
-    opts.on_before_receive.filetype = filetype_hooks.on_before_receive
-    opts.on_after_receive.filetype = filetype_hooks.on_after_receive
   end
   local receiver = setmetatable(opts, Receiver)
   state.add_receiver(receiver)
@@ -35,16 +21,45 @@ function Receiver:add_sender(sender)
   table.insert(self.senders, sender)
 end
 
+function Receiver._setup_hooks(opts)
+  opts = opts or {}
+  local hooks = {}
+  local config = require("resin").config or {}
+  hooks.on_before_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_receive, config.hooks.on_before_receive))
+  hooks.on_after_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_receive, config.hooks.on_after_receive))
+
+  local filetype_config = utils.get_filetype_config(opts)
+  local filetype_hooks =
+    vim.tbl_deep_extend("keep", vim.deepcopy(config.filetype[opts.filetype]) or {}, filetype_config)
+  hooks.on_before_receive.filetype = filetype_hooks.on_before_receive
+  hooks.on_after_receive.filetype = filetype_hooks.on_after_receive
+  return hooks
+end
+
 function Receiver:receive(data, opts)
-  if type(self.on_before_receive) == "table" then
-    for _, fn in pairs(self.on_before_receive) do
+  opts = opts or {}
+  local hooks = self._setup_hooks(opts)
+  for hook, fn in pairs(hooks.on_before_receive) do
+    if type(fn) == "function" then
       fn(self, data, opts)
+    else
+      vim.notify(
+        string.format("%s hook is not a valid function but %s", hook, type(hook)),
+        vim.log.levels.WARN,
+        { title = "resin.receive" }
+      )
     end
   end
   self:receiver_fn(data, opts)
-  if type(self.on_after_receive) == "table" then
-    for _, fn in pairs(self.on_after_receive) do
+  for hook, fn in pairs(hooks.on_after_receive) do
+    if type(fn) == "function" then
       fn(self, data, opts)
+    else
+      vim.notify(
+        string.format("%s hook is not a valid function but %s", hook, type(hook)),
+        vim.log.levels.WARN,
+        { title = "resin.receive" }
+      )
     end
   end
 end

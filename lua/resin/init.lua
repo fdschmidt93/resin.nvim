@@ -5,7 +5,6 @@ local os_sep = require("plenary.path").path.sep
 local M = {}
 
 M.config = {
-  enable_filetype = true,
   history = {
     path = vim.fn.stdpath "state" .. os_sep .. "resin_history.json",
     limit = 20,
@@ -23,6 +22,7 @@ M.config = {
     on_after_receive = {},
   },
   default_mappings = true,
+  enable_filetype = true,
   filetype = {},
 }
 
@@ -60,7 +60,9 @@ M.setup = function(opts)
         local resin_extmarks = require "resin.extmarks"
         -- history was changed
         if not vim.tbl_isempty(resin_extmarks._marks) then
-          require("resin.history").write { convert = true }
+          local resin_history = require("resin.history")
+          local history = resin_history.read_history()
+          resin_history.write(history, { convert = true })
         end
       end,
     })

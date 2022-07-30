@@ -82,7 +82,7 @@ return function(opts)
   local bufnr = a.nvim_get_current_buf()
   local bufname = a.nvim_buf_get_name(bufnr)
   local filetype = vim.bo[bufnr].filetype
-  local sender = vim.F.if_nil(opts.sender, require("resin.state").get_senders()[bufnr])
+  local sender = vim.F.if_nil(opts.sender, require("resin").get_sender(bufnr))
 
   local data = {}
   local times = {}
@@ -114,34 +114,34 @@ return function(opts)
     return tonumber(x.time) > tonumber(y.time)
   end)
   pickers
-      .new(opts, {
-        prompt_title = "REPL history",
-        finder = finders.new_table {
-          results = data,
-          entry_maker = vim.F.if_nil(opts.entry_maker, entry_maker(opts)),
-        },
-        previewer = previewer(opts),
-        sorter = conf.file_sorter(opts),
-        attach_mappings = function(prompt_bufnr)
-          action_set.select:replace(function()
-            local current_picker = action_state.get_current_picker(prompt_bufnr)
-            local selections = current_picker:get_multi_selection()
-            if vim.tbl_isempty(selections) then
-              table.insert(selections, action_state.get_selected_entry())
+    .new(opts, {
+      prompt_title = "REPL history",
+      finder = finders.new_table {
+        results = data,
+        entry_maker = vim.F.if_nil(opts.entry_maker, entry_maker(opts)),
+      },
+      previewer = previewer(opts),
+      sorter = conf.file_sorter(opts),
+      attach_mappings = function(prompt_bufnr)
+        action_set.select:replace(function()
+          local current_picker = action_state.get_current_picker(prompt_bufnr)
+          local selections = current_picker:get_multi_selection()
+          if vim.tbl_isempty(selections) then
+            table.insert(selections, action_state.get_selected_entry())
+          end
+          actions.close(prompt_bufnr)
+          local bufnames = {}
+          for _, b in ipairs(a.nvim_list_bufs()) do
+            if a.nvim_buf_is_loaded(b) then
+              bufnames[a.nvim_buf_get_name(b)] = true
             end
-            actions.close(prompt_bufnr)
-            local bufnames = {}
-            for _, b in ipairs(a.nvim_list_bufs()) do
-              if a.nvim_buf_is_loaded(b) then
-                bufnames[a.nvim_buf_get_name(b)] = true
-              end
-            end
-            for _, selection in ipairs(selections) do
-              sender:send_fn(selection.value.data, { history = bufnames[selection.value.filename] })
-            end
-          end)
-          return true
-        end,
-      })
-      :find()
+          end
+          for _, selection in ipairs(selections) do
+            sender:send_fn(selection.value.data, { history = bufnames[selection.value.filename] })
+          end
+        end)
+        return true
+      end,
+    })
+    :find()
 end

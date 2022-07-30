@@ -14,12 +14,12 @@ local function read_file(path)
   local fd = vim.loop.fs_open(path, "r", 438)
   local stat = vim.loop.fs_fstat(fd)
   local data = vim.loop.fs_read(fd, stat.size, 0)
-  vim.loop.fs_close(fd)
+  assert(vim.loop.fs_close(fd))
   return data
 end
 
-M.read_history = function()
-  local history_path = require("resin").config.history.path
+M.read_history = function(path)
+  local history_path = vim.F.if_nil(path, require("resin").config.history.path)
   local history
   if vim.fn.filereadable(history_path) == 1 then
     -- format: { filename = { string<time> = { begin = begin_pos, end_pos = end_pos } } }
@@ -78,7 +78,7 @@ M.convert = function(history)
           begin_pos[1],
           begin_pos[2],
           max_len < end_pos[1] and max_len or end_pos[1],
-          max_len < end_pos[1] and #last_line or end_pos[2] + 1 ,
+          max_len < end_pos[1] and #last_line or end_pos[2] + 1,
           {}
         )
       else
@@ -114,11 +114,17 @@ M.truncate_history = function(history, limit)
   return history
 end
 
-M.write = function(opts)
+M.add_entry = function(history, entry)
+  if not history[entry.filename] then
+    history[entry.filename] = {}
+  end
+  history[entry.filename][entry.time] = entry.data
+end
+
+M.write = function(history, opts)
   opts = opts or {}
   opts.convert = vim.F.if_nil(opts.convert, false)
   local history_config = require("resin").config.history
-  local history = M.read_history()
   if opts.convert then
     history = M.convert(history)
   end

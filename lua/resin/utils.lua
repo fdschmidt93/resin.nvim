@@ -42,6 +42,20 @@ function M.fn_wrap_tbl(obj)
   return type(obj) == "function" and { obj } or vim.tbl_deep_extend("force", {}, obj)
 end
 
+function M.get_filetype_config(opts)
+  opts = opts or {}
+  local config = require("resin").config or {}
+  local user_ft_config = config.filetype[opts.filetype] or {}
+  local enable_filetype = vim.F.if_nil(opts.enable_filetype, config.enable_filetype or false)
+  if enable_filetype then
+    local exists, resin_ft_config = pcall(require, string.format("resin.ft.%s", opts.filetype))
+    if exists then
+      user_ft_config = vim.tbl_deep_extend("keep", user_ft_config, resin_ft_config)
+    end
+  end
+  return user_ft_config
+end
+
 function M.get_tmux_sockets()
   local sockets = {}
   local sessions = Job:new({ command = "tmux", args = { "list-sessions", "-F", "#{session_name}" } }):sync()

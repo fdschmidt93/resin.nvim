@@ -1,21 +1,29 @@
+---@mod resin.Sender Introduction
+---@brief [[
+---
+---NOTE: remember there is no formatting or text wrapping
+---@brief ]]
+
 local a = vim.api
-local history = require "resin.history"
+local resin_history = require "resin.history"
 local state = require "resin.state"
 local extmarks = require "resin.extmarks"
 local utils = require "resin.utils"
 
 local resin_ns = a.nvim_create_namespace "ResinMarks"
 
+---@class resin.Sender
+---@field bufnr number Buffer handle to create |Sender| for (default: current buffer)
+---@field filetype string filetype to create |Sender| for (default: filetype of current buffer)
+---@field receivers table array of |Receiver|s for Sender (default: empty table)
+---@field on_before_send table<function> table of functions executed before sending (default: empty table)
+---@field on_after_send table<function> table of functions executed before sending (default: empty table)
 local Sender = {}
 Sender.__index = Sender
 
 function Sender:new(opts)
   opts = opts or {}
-  local config = require("resin").config
-
-  -- initialize properties
   opts.bufnr = vim.F.if_nil(opts.bufnr, a.nvim_get_current_buf())
-  opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[opts.bufnr].filetype)
 
   -- each Sender can have multiple Receivers; for simplicity, redirect into receivers
   opts.receivers = vim.F.if_nil(opts.receivers, {})
@@ -24,23 +32,23 @@ function Sender:new(opts)
     opts.receiver = nil
   end
 
-  opts.on_before_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_send, config.hooks.on_before_send))
-  opts.on_after_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_send, config.hooks.on_after_send))
-
-  opts.enable_filetype = vim.F.if_nil(opts.enable_filetype, true)
-  if opts.filetype ~= "" and opts.enable_filetype then
-    local filetype_hooks = vim.tbl_deep_extend(
-      "keep",
-      vim.deepcopy(config.filetype[opts.filetype]) or {},
-      require(string.format("resin.ft.%s", opts.filetype))
-    )
-    opts.on_before_send.filetype = filetype_hooks.on_before_send
-    opts.on_after_send.filetype = filetype_hooks.on_after_send
-    opts.setup_receiver = vim.F.if_nil(opts.setup_receiver, filetype_hooks.setup_receiver)
-  end
   local sender = setmetatable(opts, Sender)
   state.add_sender(sender)
   return sender
+end
+
+function Sender._setup_hooks(opts)
+  opts = opts or {}
+  local hooks = {}
+  local config = require("resin").config or {}
+  hooks.on_before_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_send, config.hooks.on_before_send))
+  hooks.on_after_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_send, config.hooks.on_after_send))
+  local filetype_config = utils.get_filetype_config(opts)
+  local filetype_hooks =
+    vim.tbl_deep_extend("keep", vim.deepcopy(config.filetype[opts.filetype]) or {}, filetype_config)
+  hooks.on_before_send.filetype = filetype_hooks.on_before_send
+  hooks.on_after_send.filetype = filetype_hooks.on_after_send
+  return hooks
 end
 
 -- TODO: block mode support but makes impl likely needlessly complex
@@ -67,17 +75,26 @@ function Sender._operatorfunc(motion)
   end
   local begin_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, begin_pos[1] - 1, begin_pos[2], {})
   local end_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, end_pos[1] - 1, end_pos[2], {})
-  extmarks.add(begin_extmark_id, end_extmark_id)
   -- pos: {1, 0}-indexed
-  return data, { motion = motion, begin_pos = begin_pos, end_pos = end_pos }
+  return data,
+    {
+      motion = motion,
+      begin_pos = begin_pos,
+      end_pos = end_pos,
+      begin_extmark_id = begin_extmark_id,
+      end_extmark_id = end_extmark_id,
+    }
 end
 
-function Sender:_instantiate_receiver(receiver_idx)
+function Sender:_get_receiver(receiver_idx, opts)
+  opts = opts or {}
   local receiver = self.receivers and self.receivers[receiver_idx]
   -- attempt to auto-add a receiver
   if not receiver or (receiver and not receiver:exists()) then
-    table.remove(self.receivers, receiver_idx)
-    self:add_receiver(nil, { receiver_idx = receiver_idx })
+    if receiver then
+      table.remove(self.receivers, receiver_idx)
+    end
+    self:add_receiver(nil, vim.tbl_deep_extend("force", opts, { receiver_idx = receiver_idx }))
     receiver = self.receivers[receiver_idx]
   end
   if self.receiver and not receiver then
@@ -97,15 +114,28 @@ end
 
 function Sender:send_fn(data, opts)
   local config = require("resin").config
+  local history_config = require("resin").config.history
   opts = opts or {}
+  opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[self.bufnr].filetype)
   opts.receiver_idx = vim.F.if_nil(opts.receiver_idx, 1)
-  local receiver = self:_instantiate_receiver(opts.receiver_idx)
+  local receiver = self:_get_receiver(opts.receiver_idx)
   if not receiver then
     return
   end
-  if type(self.on_before_send) == "table" then
-    for _, fn in pairs(self.on_before_send) do
+  local orig_data
+  if not (opts.history == false) and history_config then
+    orig_data = vim.deepcopy(data)
+  end
+  local hooks = self._setup_hooks(opts)
+  for hook, fn in pairs(hooks.on_before_send) do
+    if type(fn) == "function" then
       fn(self, data, opts)
+    else
+      vim.notify(
+        string.format("%s hook is not a valid function but %s", hook, type(hook)),
+        vim.log.levels.WARN,
+        { title = "resin.send" }
+      )
     end
   end
   receiver:receive(data, opts)
@@ -120,14 +150,25 @@ function Sender:send_fn(data, opts)
       hl_group = vim.F.if_nil(highlight.group, config.highlight.group),
     }
   end
-  -- TODO make history opt-out for single send
-  local history_config = require("resin").config.history
   if not (opts.history == false) and history_config then
-    history.write()
+    local history = resin_history.read_history()
+    -- check availability of marks
+    if vim.deep_equal(orig_data, data) and opts.begin_extmark_id and opts.end_extmark_id then
+      extmarks.add(opts.begin_extmark_id, opts.end_extmark_id)
+    else
+      resin_history.add_entry(history, { filename = a.nvim_buf_get_name(self.bufnr), time = os.time(), data = data })
+    end
+    resin_history.write(history)
   end
-  if type(self.on_after_send) == "table" then
-    for _, fn in pairs(self.on_after_send) do
+  for hook, fn in pairs(hooks.on_after_send) do
+    if type(fn) == "function" then
       fn(self, data, opts)
+    else
+      vim.notify(
+        string.format("%s hook is not a valid function but %s", hook, type(hook)),
+        vim.log.levels.WARN,
+        { title = "resin.send" }
+      )
     end
   end
 end
@@ -152,8 +193,10 @@ end
 -- how to identify receiver
 function Sender:add_receiver(receiver, opts)
   opts = opts or {}
-  if receiver == nil and self.setup_receiver then
-    receiver = self:setup_receiver()
+  opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[self.bufnr].filetype)
+  local filetype_config = utils.get_filetype_config(opts)
+  if receiver == nil and filetype_config.setup_receiver then
+    receiver = filetype_config.setup_receiver(self.bufnr)
   end
   if receiver == nil then
     vim.notify("No receiver provided", vim.log.levels.WARN, { title = "resin.nvim" })
