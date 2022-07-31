@@ -1,4 +1,4 @@
-local a = vim.api
+local api = vim.api
 local extmarks = require "resin.extmarks"
 local Path = require "plenary.path"
 
@@ -30,7 +30,7 @@ M.read_history = function(path)
   end
   local extmarks_ = extmarks.get_marks_positions()
   for bufnr, buffer_marks in pairs(extmarks_) do
-    local bufname = a.nvim_buf_get_name(bufnr)
+    local bufname = api.nvim_buf_get_name(bufnr)
     for time, pos in pairs(buffer_marks) do
       if not history[bufname] then
         history[bufname] = {}
@@ -46,8 +46,8 @@ M.convert = function(history)
   local bufs = vim.api.nvim_list_bufs()
   local bufnames = {}
   for _, buf in ipairs(bufs) do
-    if a.nvim_buf_is_loaded(buf) then
-      bufnames[a.nvim_buf_get_name(buf)] = buf
+    if api.nvim_buf_is_loaded(buf) then
+      bufnames[api.nvim_buf_get_name(buf)] = buf
     end
   end
   for filename, filehistory in pairs(history) do
@@ -61,8 +61,8 @@ M.convert = function(history)
         table.insert(processed_data, line)
       end
       table.remove(processed_data)
-      bufnr = a.nvim_create_buf(false, true)
-      a.nvim_buf_set_lines(bufnr, 0, -1, false, processed_data)
+      bufnr = api.nvim_create_buf(false, true)
+      api.nvim_buf_set_lines(bufnr, 0, -1, false, processed_data)
       cleanup_buf = true
     end
     for timestamp, value in pairs(filehistory) do
@@ -70,10 +70,10 @@ M.convert = function(history)
       if value.begin_pos then
         local begin_pos = value.begin_pos
         local end_pos = value.end_pos
-        local max_len = a.nvim_buf_line_count(bufnr) - 1
-        local last_line = a.nvim_buf_get_lines(bufnr, max_len, -1, false)[1]
+        local max_len = api.nvim_buf_line_count(bufnr) - 1
+        local last_line = api.nvim_buf_get_lines(bufnr, max_len, -1, false)[1]
         -- end of file may be intermittently deleted
-        data = a.nvim_buf_get_text(
+        data = api.nvim_buf_get_text(
           bufnr,
           begin_pos[1],
           begin_pos[2],
@@ -87,7 +87,7 @@ M.convert = function(history)
       ret[filename][tostring(timestamp)] = data
     end
     if cleanup_buf then
-      a.nvim_buf_delete(bufnr, { force = true, unload = false })
+      api.nvim_buf_delete(bufnr, { force = true, unload = false })
     end
   end
   return ret

@@ -1,4 +1,4 @@
-local a = vim.api
+local api = vim.api
 
 local M = {}
 
@@ -7,7 +7,7 @@ M._receivers = {}
 
 function M.add_sender(sender)
   if not M._senders[sender.bufnr] then
-    a.nvim_create_autocmd("BufUnload", {
+    api.nvim_create_autocmd("BufUnload", {
       buffer = sender.bufnr,
       once = true,
       callback = function()

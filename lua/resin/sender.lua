@@ -4,13 +4,13 @@
 ---NOTE: remember there is no formatting or text wrapping
 ---@brief ]]
 
-local a = vim.api
+local api = vim.api
 local resin_history = require "resin.history"
 local state = require "resin.state"
 local extmarks = require "resin.extmarks"
 local utils = require "resin.utils"
 
-local resin_ns = a.nvim_create_namespace "ResinMarks"
+local resin_ns = api.nvim_create_namespace "ResinMarks"
 
 ---@class resin.Sender
 ---@field bufnr number Buffer handle to create |Sender| for (default: current buffer)
@@ -55,15 +55,15 @@ end
 -- TODO: multi-width chars? see above
 -- TODO: carve-out post-processing
 function Sender._operatorfunc(motion)
-  local begin_pos = a.nvim_buf_get_mark(0, "[")
-  local end_pos = a.nvim_buf_get_mark(0, "]")
-  local max_col = #a.nvim_buf_get_lines(0, end_pos[1] - 1, end_pos[1], false)[1]
+  local begin_pos = api.nvim_buf_get_mark(0, "[")
+  local end_pos = api.nvim_buf_get_mark(0, "]")
+  local max_col = #api.nvim_buf_get_lines(0, end_pos[1] - 1, end_pos[1], false)[1]
   -- handle line motions
   begin_pos[2] = motion == "line" and 0 or begin_pos[2]
   end_pos[2] = motion ~= "line" and math.min(end_pos[2], max_col) or max_col -- end_pos[2] may be inf (eg inside paragraph)
 
   -- buf_get_text exclusive: add end_pos + 1
-  local data = a.nvim_buf_get_text(0, begin_pos[1] - 1, begin_pos[2], end_pos[1] - 1, end_pos[2] + 1, {})
+  local data = api.nvim_buf_get_text(0, begin_pos[1] - 1, begin_pos[2], end_pos[1] - 1, end_pos[2] + 1, {})
   -- clean up tabs
   local spaces = {}
   for _ = 1, vim.bo.tabstop do
@@ -73,8 +73,8 @@ function Sender._operatorfunc(motion)
   for i = 1, #data do
     data[i] = string.gsub(data[i], "\t", spaces)
   end
-  local begin_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, begin_pos[1] - 1, begin_pos[2], {})
-  local end_extmark_id = a.nvim_buf_set_extmark(0, resin_ns, end_pos[1] - 1, end_pos[2], {})
+  local begin_extmark_id = api.nvim_buf_set_extmark(0, resin_ns, begin_pos[1] - 1, begin_pos[2], {})
+  local end_extmark_id = api.nvim_buf_set_extmark(0, resin_ns, end_pos[1] - 1, end_pos[2], {})
   -- pos: {1, 0}-indexed
   return data,
     {
@@ -102,7 +102,7 @@ end
 function Sender:send_operator(opts)
   opts = opts or {}
   -- save cursor for restoring post-sending
-  local cursor = a.nvim_win_get_cursor(0)
+  local cursor = api.nvim_win_get_cursor(0)
   _ResinOperatorFunc = function(motion)
     local data, meta_data = Sender._operatorfunc(motion)
     if motion == "block" then
@@ -110,10 +110,10 @@ function Sender:send_operator(opts)
       return
     end
     self:send(data, vim.tbl_deep_extend("force", opts, meta_data))
-    a.nvim_win_set_cursor(0, cursor)
+    api.nvim_win_set_cursor(0, cursor)
   end
   vim.go.operatorfunc = "v:lua._ResinOperatorFunc"
-  a.nvim_feedkeys("g@", "n", false)
+  api.nvim_feedkeys("g@", "n", false)
 end
 
 function Sender:send(data, opts)

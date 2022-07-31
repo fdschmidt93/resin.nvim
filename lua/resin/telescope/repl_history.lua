@@ -1,4 +1,4 @@
-local a = vim.api
+local api = vim.api
 local utils = require "resin.utils"
 local action_set = require "telescope.actions.set"
 local actions = require "telescope.actions"
@@ -17,7 +17,7 @@ local previewer = function(opts)
   opts = opts or {}
   return previewers.new_buffer_previewer {
     define_preview = function(self, entry)
-      a.nvim_buf_set_lines(self.state.bufnr, 0, 0, false, entry.value.data)
+      api.nvim_buf_set_lines(self.state.bufnr, 0, 0, false, entry.value.data)
       if entry.value.filetype then
         preview_utils.ts_highlighter(self.state.bufnr, entry.value.filetype)
       end
@@ -77,7 +77,7 @@ return function(opts)
   opts.limit_filetype = vim.F.if_nil(opts.limit_filetype, true)
   opts.limit_file = vim.F.if_nil(opts.limit_file, false)
 
-  local bufnr = a.nvim_get_current_buf()
+  local bufnr = api.nvim_get_current_buf()
   local sender = vim.F.if_nil(opts.sender, require("resin").get_sender(bufnr))
   local data = utils.parse_history(opts)
 
@@ -99,9 +99,9 @@ return function(opts)
           end
           actions.close(prompt_bufnr)
           local bufnames = {}
-          for _, b in ipairs(a.nvim_list_bufs()) do
-            if a.nvim_buf_is_loaded(b) then
-              bufnames[a.nvim_buf_get_name(b)] = true
+          for _, b in ipairs(api.nvim_list_bufs()) do
+            if api.nvim_buf_is_loaded(b) then
+              bufnames[api.nvim_buf_get_name(b)] = true
             end
           end
           for _, selection in ipairs(selections) do
