@@ -53,4 +53,35 @@ M.receiver = function(opts)
   end)
 end
 
+M.repl_history = function(opts)
+  opts = opts or {}
+  opts.limit_filetype = vim.F.if_nil(opts.limit_filetype, true)
+  opts.limit_file = vim.F.if_nil(opts.limit_file, false)
+
+  local bufnr = api.nvim_get_current_buf()
+  local sender = vim.F.if_nil(opts.sender, require("resin").get_sender(bufnr))
+  local items = utils.parse_history(opts)
+  vim.ui.select(items, {
+    prompt = "Available Receivers",
+    format_item = function(item)
+      -- TODO: maybe add more info
+      -- local name = vim.fn.fnamemodify(item.filename, ":t")
+      -- local status = item.active and "R" or "D"
+      -- local time = os.date("%Y/%m/%d", item.time)
+      local string = table.concat(item.data, " ")
+      return string
+    end,
+  }, function(choice)
+    if choice then
+      local bufnames = {}
+      for _, b in ipairs(api.nvim_list_bufs()) do
+        if api.nvim_buf_is_loaded(b) then
+          bufnames[api.nvim_buf_get_name(b)] = true
+        end
+      end
+      sender:send(choice.data, { history = bufnames[choice.filename] })
+    end
+  end)
+end
+
 return M

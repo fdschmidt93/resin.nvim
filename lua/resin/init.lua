@@ -63,7 +63,7 @@ M.setup = function(opts)
     vim.keymap.set({ "n", "x" }, "<C-c><C-c>", function()
       require("resin").send()
     end, { desc = "resin.nvim: send-operator-to-repl" })
-    vim.keymap.set({ "n" }, "<C-h>", function()
+    vim.keymap.set({ "n" }, "<C-c><C-h>", function()
       require("resin").send_history()
     end, { desc = "resin.nvim: send-history-to-repl" })
     vim.keymap.set({ "n" }, "<C-c>v", function()
@@ -74,6 +74,14 @@ M.setup = function(opts)
         require("resin.select").receiver()
       end
     end, { desc = "resin.nvim: select-repl" })
+    vim.keymap.set({ "n" }, "<C-c>h", function()
+      local has, _ = pcall(require, "telescope")
+      if has then
+        require("resin.telescope").repl_history()
+      else
+        require("resin.select").repl_history()
+      end
+    end, { desc = "resin.nvim: select-send-history-to-repl" })
   end
   if M.config.history.save_on_exit then
     vim.api.nvim_create_autocmd("VimLeave", {
