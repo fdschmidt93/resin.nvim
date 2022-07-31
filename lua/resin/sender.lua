@@ -23,7 +23,7 @@ Sender.__index = Sender
 
 function Sender:new(opts)
   opts = opts or {}
-  opts.bufnr = vim.F.if_nil(opts.bufnr, a.nvim_get_current_buf())
+  opts.bufnr = vim.F.if_nil(opts.bufnr, api.nvim_get_current_buf())
 
   -- each Sender can have multiple Receivers; for simplicity, redirect into receivers
   opts.receivers = vim.F.if_nil(opts.receivers, {})
@@ -160,7 +160,7 @@ function Sender:send(data, opts)
     if vim.deep_equal(orig_data, data) and opts.begin_extmark_id and opts.end_extmark_id then
       extmarks.add(opts.begin_extmark_id, opts.end_extmark_id)
     else
-      resin_history.add_entry(history, { filename = a.nvim_buf_get_name(self.bufnr), time = os.time(), data = data })
+      resin_history.add_entry(history, { filename = api.nvim_buf_get_name(self.bufnr), time = os.time(), data = data })
     end
     resin_history.write(history)
   end

@@ -12,8 +12,7 @@ local previewers = require "telescope.previewers.buffer_previewer"
 local preview_utils = require "telescope.previewers.utils"
 
 -- TODO: extract treesitter highlights for repl ordinal
-
-local previewer = function(opts)
+local function history_previewer(opts)
   opts = opts or {}
   return previewers.new_buffer_previewer {
     define_preview = function(self, entry)
@@ -25,7 +24,7 @@ local previewer = function(opts)
   }
 end
 
-local function entry_maker(opts)
+local function history_entry_maker(opts)
   local path_display = vim.F.if_nil(opts.path_display, { ["tail"] = true })
   return function(entry)
     local displayer = entry_display.create {
@@ -86,9 +85,9 @@ return function(opts)
       prompt_title = "REPL history",
       finder = finders.new_table {
         results = data,
-        entry_maker = vim.F.if_nil(opts.entry_maker, entry_maker(opts)),
+        entry_maker = vim.F.if_nil(opts.entry_maker, history_entry_maker(opts)),
       },
-      previewer = previewer(opts),
+      previewer = history_previewer(opts),
       sorter = conf.file_sorter(opts),
       attach_mappings = function(prompt_bufnr)
         action_set.select:replace(function()

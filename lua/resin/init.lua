@@ -60,12 +60,20 @@ end
 M.setup = function(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts)
   if M.config.default_mappings then
-    vim.keymap.set({ "n", "x" }, "<C-c>", function()
+    vim.keymap.set({ "n", "x" }, "<C-c><C-c>", function()
       require("resin").send()
     end, { desc = "resin.nvim: send-operator-to-repl" })
     vim.keymap.set({ "n" }, "<C-h>", function()
       require("resin").send_history()
-    end, { desc = "resin.nvim: send-operator-to-repl" })
+    end, { desc = "resin.nvim: send-history-to-repl" })
+    vim.keymap.set({ "n" }, "<C-c>v", function()
+      local has, _ = pcall(require, "telescope")
+      if has then
+        require("resin.telescope").receiver()
+      else
+        require("resin.select").receiver()
+      end
+    end, { desc = "resin.nvim: select-repl" })
   end
   if M.config.history.save_on_exit then
     vim.api.nvim_create_autocmd("VimLeave", {
@@ -77,6 +85,7 @@ M.setup = function(opts)
           local history = resin_history.read_history()
           resin_history.write(history, { convert = true })
         end
+        vim.cmd [[redraw!]]
       end,
     })
   end
