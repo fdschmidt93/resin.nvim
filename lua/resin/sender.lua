@@ -86,33 +86,37 @@ function Sender._operatorfunc(motion)
     }
 end
 
-function Sender:_get_receiver(receiver_idx, opts)
+function Sender:send_history(opts)
   opts = opts or {}
-  local receiver = self.receivers and self.receivers[receiver_idx]
-  -- attempt to auto-add a receiver
-  if not receiver or (receiver and not receiver:exists()) then
-    if receiver then
-      table.remove(self.receivers, receiver_idx)
+  opts.count = vim.F.if_nil(opts.count, 1)
+  local history = utils.parse_history(opts)
+  local data = {}
+  for i = 1, opts.count do
+    for _, line in ipairs(history[i].data) do
+      table.insert(data, line)
     end
-    self:add_receiver(nil, vim.tbl_deep_extend("force", opts, { receiver_idx = receiver_idx }))
-    receiver = self.receivers[receiver_idx]
   end
-  if self.receiver and not receiver then
-    vim.notify(
-      string.format(
-        "%s is an invalid receiver index! Only %s receivers attached to sender.",
-        receiver_idx,
-        #self.receivers,
-        vim.log.levels.ERROR,
-        { title = "resin.nvim" }
-      )
-    )
-    return
-  end
-  return receiver
+  self:send(data, { history = false })
 end
 
-function Sender:send_fn(data, opts)
+function Sender:send_operator(opts)
+  opts = opts or {}
+  -- save cursor for restoring post-sending
+  local cursor = a.nvim_win_get_cursor(0)
+  _ResinOperatorFunc = function(motion)
+    local data, meta_data = Sender._operatorfunc(motion)
+    if motion == "block" then
+      vim.notify("Sending from visual block mode not supported.", vim.log.levels.WARN, { title = "resin.nvim" })
+      return
+    end
+    self:send(data, vim.tbl_deep_extend("force", opts, meta_data))
+    a.nvim_win_set_cursor(0, cursor)
+  end
+  vim.go.operatorfunc = "v:lua._ResinOperatorFunc"
+  a.nvim_feedkeys("g@", "n", false)
+end
+
+function Sender:send(data, opts)
   local config = require("resin").config
   local history_config = require("resin").config.history
   opts = opts or {}
@@ -173,21 +177,30 @@ function Sender:send_fn(data, opts)
   end
 end
 
-function Sender:send(opts)
+function Sender:_get_receiver(receiver_idx, opts)
   opts = opts or {}
-  -- save cursor for restoring post-sending
-  local cursor = a.nvim_win_get_cursor(0)
-  _ResinOperatorFunc = function(motion)
-    local data, meta_data = Sender._operatorfunc(motion)
-    if motion == "block" then
-      vim.notify("Sending from visual block mode not supported.", vim.log.levels.WARN, { title = "resin.nvim" })
-      return
+  local receiver = self.receivers and self.receivers[receiver_idx]
+  -- attempt to auto-add a receiver
+  if not receiver or (receiver and not receiver:exists()) then
+    if receiver then
+      table.remove(self.receivers, receiver_idx)
     end
-    self:send_fn(data, vim.tbl_deep_extend("force", opts, meta_data))
-    a.nvim_win_set_cursor(0, cursor)
+    self:add_receiver(nil, vim.tbl_deep_extend("force", opts, { receiver_idx = receiver_idx }))
+    receiver = self.receivers[receiver_idx]
   end
-  vim.go.operatorfunc = "v:lua._ResinOperatorFunc"
-  a.nvim_feedkeys("g@", "n", false)
+  if self.receiver and not receiver then
+    vim.notify(
+      string.format(
+        "%s is an invalid receiver index! Only %s receivers attached to sender.",
+        receiver_idx,
+        #self.receivers,
+        vim.log.levels.ERROR,
+        { title = "resin.nvim" }
+      )
+    )
+    return
+  end
+  return receiver
 end
 
 -- how to identify receiver

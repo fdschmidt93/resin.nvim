@@ -1,13 +1,11 @@
 local a = vim.api
+local utils = require "resin.utils"
 local action_set = require "telescope.actions.set"
 local actions = require "telescope.actions"
 local action_state = require "telescope.actions.state"
 local conf = require("telescope.config").values
 local finders = require "telescope.finders"
-local make_entry = require "telescope.make_entry"
 local pickers = require "telescope.pickers"
-local history = require "resin.history"
-local pfiletype = require "plenary.filetype"
 local entry_display = require "telescope.pickers.entry_display"
 local tele_utils = require "telescope.utils"
 local previewers = require "telescope.previewers.buffer_previewer"
@@ -80,39 +78,9 @@ return function(opts)
   opts.limit_file = vim.F.if_nil(opts.limit_file, false)
 
   local bufnr = a.nvim_get_current_buf()
-  local bufname = a.nvim_buf_get_name(bufnr)
-  local filetype = vim.bo[bufnr].filetype
   local sender = vim.F.if_nil(opts.sender, require("resin").get_sender(bufnr))
+  local data = utils.parse_history(opts)
 
-  local data = {}
-  local times = {}
-  local index = 1
-  for filename, filehistory in pairs(history.convert(history.read_history())) do
-    if not (opts.limit_file and filename ~= bufname) then
-      for timestamp, sent_data in pairs(filehistory) do
-        local ft = pfiletype.detect(filename)
-        if not (opts.limit_filetype and filetype ~= ft) then
-          table.insert(data, { filename = filename, filetype = ft, time = timestamp, data = sent_data })
-          times[timestamp] = index
-          index = index + 1
-        end
-      end
-    end
-  end
-  -- indicate alive or dead mark
-  local marks = require("resin.extmarks").get_marks()
-  for _, buffer_marks in pairs(marks) do
-    for time, _ in pairs(buffer_marks) do
-      local i = times[tostring(time)]
-      if i ~= nil then
-        data[i].active = true
-      end
-    end
-  end
-  -- sort descendingly by time
-  table.sort(data, function(x, y)
-    return tonumber(x.time) > tonumber(y.time)
-  end)
   pickers
     .new(opts, {
       prompt_title = "REPL history",
@@ -137,7 +105,7 @@ return function(opts)
             end
           end
           for _, selection in ipairs(selections) do
-            sender:send_fn(selection.value.data, { history = bufnames[selection.value.filename] })
+            sender:send(selection.value.data, { history = bufnames[selection.value.filename] })
           end
         end)
         return true

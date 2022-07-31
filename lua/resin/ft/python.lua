@@ -6,5 +6,5 @@ return {
   end,
   on_after_receive = function(receiver)
     receiver:receiver_fn { "--" } -- sending ipython header
-  end
+  end,
 }

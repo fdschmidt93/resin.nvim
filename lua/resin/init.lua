@@ -44,7 +44,17 @@ M.send = function(opts)
   opts.receiver_idx = vim.v.count > 0 and vim.v.count or 1
   local bufnr = vim.api.nvim_get_current_buf()
   local sender = M.get_sender(bufnr)
-  sender:send(opts)
+  sender:send_operator(opts)
+end
+
+M.send_history = function(opts)
+  opts = opts or {}
+  opts.count = vim.v.count > 0 and vim.v.count or 1
+  opts.limit_filetype = vim.F.if_nil(opts.limit_filetype, true)
+  opts.limit_file = vim.F.if_nil(opts.limit_file, false)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local sender = M.get_sender(bufnr)
+  sender:send_history(opts)
 end
 
 M.setup = function(opts)
@@ -52,7 +62,10 @@ M.setup = function(opts)
   if M.config.default_mappings then
     vim.keymap.set({ "n", "x" }, "<C-c>", function()
       require("resin").send()
-    end, { desc = "Send-to-repl" })
+    end, { desc = "resin.nvim: send-operator-to-repl" })
+    vim.keymap.set({ "n" }, "<C-h>", function()
+      require("resin").send_history()
+    end, { desc = "resin.nvim: send-operator-to-repl" })
   end
   if M.config.history.save_on_exit then
     vim.api.nvim_create_autocmd("VimLeave", {
@@ -60,7 +73,7 @@ M.setup = function(opts)
         local resin_extmarks = require "resin.extmarks"
         -- history was changed
         if not vim.tbl_isempty(resin_extmarks._marks) then
-          local resin_history = require("resin.history")
+          local resin_history = require "resin.history"
           local history = resin_history.read_history()
           resin_history.write(history, { convert = true })
         end

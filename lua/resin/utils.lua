@@ -1,4 +1,6 @@
 local api = vim.api
+local history = require "resin.history"
+local pfiletype = require "plenary.filetype"
 local Job = require "plenary.job"
 
 M = {}
@@ -89,4 +91,44 @@ function M.get_tmux_sockets()
   return sockets
 end
 
+function M.parse_history(opts)
+  opts = opts or {}
+  opts.limit_filetype = vim.F.if_nil(opts.limit_filetype, true)
+  opts.limit_file = vim.F.if_nil(opts.limit_file, false)
+
+  local bufnr = api.nvim_get_current_buf()
+  local bufname = api.nvim_buf_get_name(bufnr)
+  local filetype = vim.bo[bufnr].filetype
+
+  local data = {}
+  local times = {}
+  local index = 1
+  for filename, filehistory in pairs(history.convert(history.read_history())) do
+    if not (opts.limit_file and filename ~= bufname) then
+      for timestamp, sent_data in pairs(filehistory) do
+        local ft = pfiletype.detect(filename)
+        if not (opts.limit_filetype and filetype ~= ft) then
+          table.insert(data, { filename = filename, filetype = ft, time = timestamp, data = sent_data })
+          times[timestamp] = index
+          index = index + 1
+        end
+      end
+    end
+  end
+  -- indicate alive or dead mark
+  local marks = require("resin.extmarks").get_marks()
+  for _, buffer_marks in pairs(marks) do
+    for time, _ in pairs(buffer_marks) do
+      local i = times[tostring(time)]
+      if i ~= nil then
+        data[i].active = true
+      end
+    end
+  end
+  -- sort descendingly by time
+  table.sort(data, function(x, y)
+    return tonumber(x.time) > tonumber(y.time)
+  end)
+  return data
+end
 return M
