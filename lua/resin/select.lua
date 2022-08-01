@@ -38,6 +38,11 @@ M.receiver = function(opts)
     end
   end
 
+  if vim.tbl_isempty(items) then
+    vim.notify("No receivers available.", vim.log.levels.INFO, { title = "resin.telescope.receivers" })
+    return
+  end
+
   vim.ui.select(items, {
     prompt = "Available Receivers",
     format_item = function(item)

@@ -131,4 +131,5 @@ function M.parse_history(opts)
   end)
   return data
 end
+
 return M

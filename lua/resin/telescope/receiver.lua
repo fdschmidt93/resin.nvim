@@ -45,10 +45,10 @@ return function(opts)
   opts.bufnr = vim.F.if_nil(opts.bufnr, api.nvim_get_current_buf())
   local sender = resin.get_sender(opts.bufnr)
 
-  local data = {}
+  local receivers = {}
   local terminals = get_neovim_terminals()
   for _, v in ipairs(terminals) do
-    table.insert(data, v)
+    table.insert(receivers, v)
   end
   local tmux_panes = {}
   if vim.fn.executable "tmux" == 1 then
@@ -65,13 +65,17 @@ return function(opts)
     end
   end
   for _, v in ipairs(tmux_panes) do
-    table.insert(data, v)
+    table.insert(receivers, v)
+  end
+  if vim.tbl_isempty(receivers) then
+    vim.notify("No receivers available.", vim.log.levels.INFO, { title = "resin.telescope.receivers" })
+    return
   end
   pickers
       .new(opts, {
         prompt_title = "Available Receivers",
         finder = finders.new_table {
-          results = data,
+          results = receivers,
           entry_maker = entry_maker,
         },
         previewer = preview_from_entry(opts),
@@ -112,7 +116,7 @@ return function(opts)
               local receiver = receivers[selection.value.name]
               if not receiver then
                 receiver = selection.value:return_receiver()
-              end
+               end
               sender:add_receiver(receiver)
             end
           end
