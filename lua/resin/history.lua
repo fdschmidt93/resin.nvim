@@ -22,9 +22,7 @@ M.read_history = function(path)
   local history_path = vim.F.if_nil(path, require("resin").config.history.path)
   local history
   if vim.fn.filereadable(history_path) == 1 then
-    -- format: { filename = { string<time> = { begin = begin_pos, end_pos = end_pos } } }
     history = vim.json.decode(read_file(history_path))
-    -- format: { bufnr = { number<time> = { begin = begin_pos, end_pos = end_pos } } }
   else
     history = {}
   end
@@ -121,6 +119,16 @@ M.add_entry = function(history, entry)
   history[entry.filename][entry.time] = entry.data
 end
 
+local remove_extmarks = function(history)
+  for _, filehistory in pairs(history) do
+    for timestamp, value in pairs(filehistory) do
+      if value.begin_pos then
+        filehistory[timestamp] = nil
+      end
+    end
+  end
+end
+
 M.write = function(history, opts)
   opts = opts or {}
   opts.convert = vim.F.if_nil(opts.convert, false)
@@ -134,6 +142,9 @@ M.write = function(history, opts)
     end
   end
   local json_obj = vim.json.encode(history)
+  -- TODO retain extmarks positions and possibly resolve to "revive" history
+  -- avoid complications in synchronization
+  history = remove_extmarks(history)
   write_file(history_config.path, json_obj)
 end
 
