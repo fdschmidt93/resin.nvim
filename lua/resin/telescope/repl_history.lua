@@ -77,7 +77,7 @@ return function(opts)
   opts.limit_file = vim.F.if_nil(opts.limit_file, false)
 
   local bufnr = api.nvim_get_current_buf()
-  local sender = vim.F.if_nil(opts.sender, require("resin").get_sender(bufnr))
+  local sender = vim.F.if_nil(opts.sender, require("resin.api").get_sender(bufnr))
   local data = utils.parse_history(opts)
 
   pickers

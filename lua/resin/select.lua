@@ -1,5 +1,5 @@
 local api = vim.api
-local resin = require "resin"
+local resin_api = require "resin.api"
 local utils = require "resin.utils"
 local M = {}
 
@@ -50,7 +50,7 @@ M.receiver = function(opts)
     end,
   }, function(choice)
     if choice then
-      local sender = resin.get_sender(bufnr)
+      local sender = resin_api.get_sender(bufnr)
       sender:remove_receiver()
       local receiver = choice:return_receiver()
       sender:add_receiver(receiver)

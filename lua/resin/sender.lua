@@ -145,7 +145,7 @@ function Sender:send(data, opts)
   receiver:receive(data, opts)
   local highlight = vim.F.if_nil(opts.highlight, {})
   -- not valid if sent from history
-  if opts.begin_pos then
+  if type(highlight) == "table" and opts.begin_pos then
     utils.hl_on_send {
       regtype = opts.motion,
       begin_pos = opts.begin_pos,
@@ -208,7 +208,8 @@ function Sender:add_receiver(receiver, opts)
   opts = opts or {}
   opts.filetype = vim.F.if_nil(opts.filetype, vim.bo[self.bufnr].filetype)
   local filetype_config = utils.get_filetype_config(opts)
-  if receiver == nil and filetype_config.setup_receiver then
+  local setup_receiver = vim.F.if_nil(opts.setup_receiver, filetype_config.setup_receiver)
+  if receiver == nil and setup_receiver then
     receiver = filetype_config.setup_receiver(self.bufnr)
   end
   if receiver == nil then
