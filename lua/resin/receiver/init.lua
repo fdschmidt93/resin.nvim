@@ -29,10 +29,8 @@ function Receiver._setup_hooks(opts)
   hooks.on_after_receive = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_receive, config.hooks.on_after_receive))
 
   local filetype_config = utils.get_filetype_config(opts)
-  local filetype_hooks =
-    vim.tbl_deep_extend("keep", vim.deepcopy(config.filetype[opts.filetype]) or {}, filetype_config)
-  hooks.on_before_receive.filetype = filetype_hooks.on_before_receive
-  hooks.on_after_receive.filetype = filetype_hooks.on_after_receive
+  hooks.on_before_receive.filetype = filetype_config.on_before_receive
+  hooks.on_after_receive.filetype = filetype_config.on_after_receive
   return hooks
 end
 

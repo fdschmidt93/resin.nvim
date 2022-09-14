@@ -19,9 +19,10 @@ local resin_api = require "resin.api"
 --- plugin provides utilities to attach a receiver, but not to manage the receiver itself, such
 --- as launching commands etc. This is left entirely, on purpose, to the user.
 ---
---- An exemplary python configuration may look like the following:
----     * The function below tries to find a terminal buf upon |resin.send| for python buffers
----     * This can be paired with a filetype autocmd to automatically open an unlisted terminal buffer
+--- An exemplary python configuration may look like the following:<br>
+---     - The function below tries to find a terminal buf upon |resin.send| for python buffers<br>
+---     - This can be paired with a filetype autocmd to automatically open an unlisted terminal buffer<br>
+---
 --- <code>
 --- require("resin").setup {
 ---   history = {
@@ -99,7 +100,6 @@ resin.config = {
 ---@field highlight table|boolean: false to deactivate, see highlight defaults above
 ---@field filetype table: see filetype above
 ---@field default_mappings boolean: setup default mappings
----@field enable_filetype boolean: recommended to enable filetype configuration (default: true)
 resin.setup = function(opts)
   resin.config = vim.tbl_deep_extend("force", resin.config, opts)
   if resin.config.default_mappings then

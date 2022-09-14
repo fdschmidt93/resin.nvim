@@ -16,6 +16,7 @@ local resin_api = {}
 ---     - Leverages operators to e.g. <C-c><c-c>ip for inside paragraph or <c-c><c-c>iW for inside WORD
 ---     - Can be prefixed by a count eg 2<C-c><C-c> to send to the second receiver
 ---@param opts table: options to pass to send
+---@field bufnr number: bufnr to send from (default: current buffer)
 ---@field on_before_send function|table: (table of) function(s) that affects send text and history
 ---@field on_after_send function|table: (table of) function(s) for your needs after sending
 ---@field on_before_receive function|table: (table of) function(s) that affects send text but not history
@@ -28,9 +29,13 @@ resin_api.send = function(opts)
   -- use count (like `3w` to jump to third word) for Count<C-c> to decide what receiver to send to
   -- for multi receiver senders
   opts.receiver_idx = vim.v.count > 0 and vim.v.count or 1
-  local bufnr = vim.api.nvim_get_current_buf()
+  local bufnr = vim.F.if_nil(opts.bufnr, vim.api.nvim_get_current_buf())
   local sender = resin_api.get_sender(bufnr)
-  sender:send_operator(opts)
+  if opts.data then
+    sender:send(opts.data, opts)
+  else
+    sender:send_operator(opts)
+  end
 end
 
 --- Send last `count` history to receiver of current buffer.
@@ -88,6 +93,5 @@ resin_api.get_sender = function(bufnr)
   end
   return sender
 end
-
 
 return resin_api

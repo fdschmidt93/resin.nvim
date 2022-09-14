@@ -44,10 +44,8 @@ function Sender._setup_hooks(opts)
   hooks.on_before_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_before_send, config.hooks.on_before_send))
   hooks.on_after_send = utils.fn_wrap_tbl(vim.F.if_nil(opts.on_after_send, config.hooks.on_after_send))
   local filetype_config = utils.get_filetype_config(opts)
-  local filetype_hooks =
-    vim.tbl_deep_extend("keep", vim.deepcopy(config.filetype[opts.filetype]) or {}, filetype_config)
-  hooks.on_before_send.filetype = filetype_hooks.on_before_send
-  hooks.on_after_send.filetype = filetype_hooks.on_after_send
+  hooks.on_before_send.filetype = filetype_config.on_before_send
+  hooks.on_after_send.filetype = filetype_config.on_after_send
   return hooks
 end
 
