@@ -53,39 +53,44 @@ M.convert = function(history)
     local bufnr = bufnames[filename]
     local cleanup_buf = false
     if bufnr == nil then
-      local data = Path:new(filename):read()
-      local processed_data = {}
-      for line in vim.gsplit(data, "[\r]?\n") do
-        table.insert(processed_data, line)
+      local path = Path:new(filename)
+      if path:exists() then
+        local data = Path:new(filename):read()
+        local processed_data = {}
+        for line in vim.gsplit(data, "[\r]?\n") do
+          table.insert(processed_data, line)
+        end
+        table.remove(processed_data)
+        bufnr = api.nvim_create_buf(false, true)
+        api.nvim_buf_set_lines(bufnr, 0, -1, false, processed_data)
+        cleanup_buf = true
       end
-      table.remove(processed_data)
-      bufnr = api.nvim_create_buf(false, true)
-      api.nvim_buf_set_lines(bufnr, 0, -1, false, processed_data)
-      cleanup_buf = true
     end
-    for timestamp, value in pairs(filehistory) do
-      local data
-      if value.begin_pos then
-        local begin_pos = value.begin_pos
-        local end_pos = value.end_pos
-        local max_len = api.nvim_buf_line_count(bufnr) - 1
-        local last_line = api.nvim_buf_get_lines(bufnr, max_len, -1, false)[1]
-        -- end of file may be intermittently deleted
-        data = api.nvim_buf_get_text(
-          bufnr,
-          begin_pos[1],
-          begin_pos[2],
-          max_len < end_pos[1] and max_len or end_pos[1],
-          max_len < end_pos[1] and #last_line or end_pos[2] + 1,
-          {}
-        )
-      else
-        data = value
+    if bufnr then
+      for timestamp, value in pairs(filehistory) do
+        local data
+        if value.begin_pos then
+          local begin_pos = value.begin_pos
+          local end_pos = value.end_pos
+          local max_len = api.nvim_buf_line_count(bufnr) - 1
+          local last_line = api.nvim_buf_get_lines(bufnr, max_len, -1, false)[1]
+          -- end of file may be intermittently deleted
+          data = api.nvim_buf_get_text(
+            bufnr,
+            begin_pos[1],
+            begin_pos[2],
+            max_len < end_pos[1] and max_len or end_pos[1],
+            max_len < end_pos[1] and #last_line or end_pos[2] + 1,
+            {}
+          )
+        else
+          data = value
+        end
+        ret[filename][tostring(timestamp)] = data
       end
-      ret[filename][tostring(timestamp)] = data
-    end
-    if cleanup_buf then
-      api.nvim_buf_delete(bufnr, { force = true, unload = false })
+      if cleanup_buf then
+        api.nvim_buf_delete(bufnr, { force = true, unload = false })
+      end
     end
   end
   return ret
