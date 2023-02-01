@@ -1,0 +1,190 @@
+================================================================================
+INTRODUCTION                                                        *resin.nvim*
+
+resin.nvim is a send-to-repl plugin leveraging neovim's native textobjects. The
+primary motivation is to "modernize" the excellent vim-slime.
+
+Core features of resin.nvim are:
+    1. Use operators (incl. treesitter objects) to send-to-repl
+    2. Hook functionality based on user functions and filetype configuration
+    3. Leverage vim.ui.select or telescope to select a single or multiple
+       receivers
+    4. History module to enable non-sequential sending of history powered by
+       telescope
+    5. Highlighting of sent text
+
+A key non-goal is to manage tie in receiver set up into |resin.nvim|, that is
+the plugin provides utilities to attach a receiver, but not to manage the
+receiver itself, such as launching commands etc. This is left entirely, on
+purpose, to the user.
+
+An exemplary python configuration may look like the following:
+
+    - The function below tries to find a terminal buf upon |resin.send| for
+      python buffers
+    - This can be paired with a filetype autocmd to automatically open an
+      unlisted terminal buffer
+
+>
+require("resin").setup {
+  history = {
+    path = vim.env.HOME .. "/.local/share/nvim/resin_history.json",
+    limit = 10,
+  },
+  filetype = {
+    python = {
+      setup_receiver = function()
+        local bufnr = vim.tbl_filter(function(b)
+          return vim.bo[b].buftype == "terminal"
+        end, vim.api.nvim_list_bufs())
+        if #bufnr > 1 then
+          vim.notify("Too many terminals open", vim.log.levels.INFO, { title = "resin.nvim" })
+          return
+        end
+        if bufnr then
+          bufnr = bufnr[1]
+          return require "resin.receiver.neovim_terminal" {
+            bufnr = bufnr,
+          }
+        end
+      end,
+    },
+  },
+}
+<
+
+
+resin.setup({opts})                                            *resin.setup()*
+    Configure |resin.nvim|. Note some flags denote tables with further
+    configuration.
+    - history:
+        - path string: where to store `resin_history.json` (default:
+          $XDG_STATE_HOME/nvim/resin_history.json)
+        - limit number: store last `limit` entries
+        - save_on_exit boolean: synchronize extmarks as text on exit
+    - highlight:
+        - timeout number: remove highlighting after `timeout` ms (default: 200)
+        - group string: group to highlight sent region (default: "IncSearch")
+    - hooks:
+        - on_before_send function|table: (table of) function(s) that affects
+          ALL send text and history
+        - on_after_send function|table: (table of) function(s) for your needs
+          after sending
+        - on_before_receive function|table: (table of) function(s) that affects
+          ALL send text but not history
+        - on_after_receive function|table: (table of) function(s) for your
+          needs after receiving
+    - filetype:
+        - Comprises "filetype" tables (e.g. filetype { python = { ... } } with
+          below elements
+        - hooks (as per above)
+        - setup_receiver function: attach receiver to sender with function,
+          re-executed if receiver ceases to exist
+
+
+
+    Parameters: ~
+        {opts} (table)  options to pass to |resin.nvim| setup
+
+    Fields: ~
+        {history}          (table|booealn)  false to deactivate, see history
+                                            defaults above
+        {highlight}        (table|boolean)  false to deactivate, see highlight
+                                            defaults above
+        {filetype}         (table)          see filetype above
+        {default_mappings} (boolean)        setup default mappings
+
+
+
+================================================================================
+API                                                                  *resin.api*
+
+The resin.api denotes the user-facing functions.
+
+
+resin_api.send({opts})                                      *resin_api.send()*
+    Primary send-to-repl function.
+    - Note:
+        - Leverages operators to e.g. <C-c><c-c>ip for inside paragraph or
+          <c-c><c-c>iW for inside WORD
+        - Can be prefixed by a count eg 2<C-c><C-c> to send to the second
+          receiver
+
+
+    Parameters: ~
+        {opts} (table)  options to pass to send
+
+    Fields: ~
+        {bufnr}             (number)          bufnr to send from (default:
+                                              current buffer)
+        {on_before_send}    (function|table)  (table of) function(s) that
+                                              affects send text and history
+        {on_after_send}     (function|table)  (table of) function(s) for your
+                                              needs after sending
+        {on_before_receive} (function|table)  (table of) function(s) that
+                                              affects send text but not
+                                              history
+        {on_after_receive}  (function|table)  (table of) function(s) for your
+                                              needs after receiving
+        {setup_receiver}    (function)        function to automatically setup
+                                              a receiver, supersedes filetype
+                                              cfg
+        {history}           (boolean)         enable or disable history for
+                                              sending, fo (default: true)
+        {highlight}         (boolean|table)   enable or disable highlight for
+                                              sending, cf. |resin.setup|
+                                              (default: true)
+
+
+resin_api.send_history({opts})                      *resin_api.send_history()*
+    Send last `count` history to receiver of current buffer.
+    - Note:
+        - The keymapping can be preseded by a count, e.g. 2<C-c><C-h> sends
+          last 2 entries by default
+        - Avoids further adding to history
+
+
+    Parameters: ~
+        {opts} (table)  see |resin.send|
+
+
+resin_api.select_receiver({opts})                *resin_api.select_receiver()*
+    Launches selector interface to attach receiver.
+    - Note:
+        - The telescope picker allows to set multiple receivers with
+          multi-selections
+
+
+    Parameters: ~
+        {opts} (table)  see |resin.send|
+
+
+resin_api.select_history({opts})                  *resin_api.select_history()*
+    Launches selector interface to send history to the receiver of the current
+    buffer.
+    - Note:
+        - The telescope picker allows to select multiple entries to send to
+          receiver in order of selection
+
+
+    Parameters: ~
+        {opts} (table)  options to pass to picker
+
+    Fields: ~
+        {limit_filetype} (boolean)  limit to entries of the current filetype
+                                    (default: true)
+        {limit_file}     (boolean)  limit to entries of the current file
+                                    (default: false)
+
+
+resin_api.get_sender({bufnr})                         *resin_api.get_sender()*
+    Get or create Sender for buffer, a utility function for customization.
+
+
+    Parameters: ~
+        {bufnr} (number)  the buffer to get sender for (default: current
+                          buffer)
+
+
+
+ vim:tw=78:ts=8:ft=help:norl:
